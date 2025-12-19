@@ -1,8 +1,8 @@
 {
     "step_x": 10,
     "step_y": 10,
-    "width": 600,
-    "height": 400,
+    "width": 400,
+    "height": 300,
     "starting_corner": "bottom-right",
     "xmin": "1070",
     "xmax": "1125",
@@ -16,7 +16,5 @@
     "lens_magnification": 1.0,
     "spectrum_range_min": 500.0,
     "spectrum_range_max": 580.0,
-    "await": 0.01,
-    "exposure_time": 328.06721329689026,
-    "gain": 10.100000381469727
+    "await": 0.01
 }

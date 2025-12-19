@@ -684,9 +684,9 @@ class HeatMapWindow(CustomToplevel):
         # Ensure data is a numpy array of objects and normalize spectrum lengths
         self.data = np.array(data, dtype=object)
         self.parent = parent
-        
-        self._create_widgets()
         self._setup_data()
+        self._create_widgets()
+        
     
     def _setup_data(self):
         """Przygotuj dane do wizualizacji (siatka X/Y + widma)."""
@@ -694,63 +694,37 @@ class HeatMapWindow(CustomToplevel):
         xs = sorted({row[0] for row in self.data})
         ys = sorted({row[1] for row in self.data})
         nx, ny = len(xs), len(ys)
-        spectrum_len = max(len(row[2]) for row in self.data)
-        self.cube = np.zeros((nx, ny, spectrum_len), dtype=float)
-        
-        self.current_lambda = 0
-        
-        # Proste mapowanie: (x, y) -> indeksy siatki bez dodatkowych przesunięć
-        for row in self.data:
-            x_idx = xs.index(row[0])
-            y_idx = ys.index(row[1])
 
-            spectrum = np.array(row[2], dtype=float)
-            # Trim or pad spectrum to match reference length
-            if len(spectrum) >= spectrum_len:
-                self.cube[x_idx, y_idx, :] = spectrum[:spectrum_len]
+        # Długość widma – bierzemy maksimum, krótsze widma dopadujemy zerami
+        spectrum_len = max(len(row[2]) for row in self.data) if len(self.data) > 0 else 0
+        self.cube = np.zeros((nx, ny, spectrum_len), dtype=np.float32)
+
+        # Wypełnij kostkę danymi widmowymi: [x_idx, y_idx, lambda_idx]
+        for row in self.data:
+            x_val, y_val, spectrum = row[0], row[1], row[2]
+            x_idx = xs.index(x_val)
+            y_idx = ys.index(y_val)
+
+            spec_arr = np.asarray(spectrum, dtype=np.float32)
+            if spec_arr.size >= spectrum_len:
+                self.cube[x_idx, y_idx, :] = spec_arr[:spectrum_len]
             else:
-                padded_spectrum = np.zeros(spectrum_len, dtype=float)
-                padded_spectrum[:len(spectrum)] = spectrum
-                self.cube[x_idx, y_idx, :] = padded_spectrum
-        
-        # Use calibration from options.json if available
-        if hasattr(self.parent, 'options') and 'lambda_calibration_enabled' in self.parent.options:
-            if self.parent.options['lambda_calibration_enabled']:
-                # Calibrated in wavelength (nm) with optional spectrum range (ROI)
-                base_min = float(self.parent.options.get('lambda_min', 400.0))
-                base_max = float(self.parent.options.get('lambda_max', 700.0))
-                roi_min = float(self.parent.options.get('spectrum_range_min', base_min))
-                roi_max = float(self.parent.options.get('spectrum_range_max', base_max))
-                if roi_min >= roi_max:
-                    roi_min, roi_max = base_min, base_max
-                lambda_min, lambda_max = roi_min, roi_max
-                self.lambdas = np.linspace(lambda_min, lambda_max, spectrum_len)
-                self.calibrated = True
-            else:
-                # Use pixel-based calibration from xmin/xmax
-                self.xmin = float(self.parent.xmin_var.get())
-                self.xmax = float(self.parent.xmax_var.get())
-                base_min = self.xmin
-                base_max = self.xmax
-                roi_min = float(self.parent.options.get('spectrum_range_min', base_min))
-                roi_max = float(self.parent.options.get('spectrum_range_max', base_max))
-                if roi_min >= roi_max:
-                    roi_min, roi_max = base_min, base_max
-                self.lambdas = np.linspace(roi_min, roi_max, spectrum_len)
-                self.calibrated = False
+                padded = np.zeros(spectrum_len, dtype=np.float32)
+                padded[:spec_arr.size] = spec_arr
+                self.cube[x_idx, y_idx, :] = padded
+
+        # Zakres kolorów dla heatmapy
+        if self.cube.size > 0:
+            self.vmin = float(self.cube.min())
+            self.vmax = float(self.cube.max())
         else:
-            # Fallback to pixel-based calibration
-            self.xmin = float(self.parent.xmin_var.get())
-            self.xmax = float(self.parent.xmax_var.get())
-            base_min = self.xmin
-            base_max = self.xmax
-            roi_min = float(getattr(self.parent.options, 'get', lambda k, d: d)('spectrum_range_min', base_min))
-            roi_max = float(getattr(self.parent.options, 'get', lambda k, d: d)('spectrum_range_max', base_max))
-            if roi_min >= roi_max:
-                roi_min, roi_max = base_min, base_max
-            self.lambdas = np.linspace(roi_min, roi_max, spectrum_len)
-            self.calibrated = False
-    
+            self.vmin, self.vmax = 0.0, 1.0
+
+        # Oś lambdas – prosto: indeksy widma (0..N-1)
+        self.lambdas = np.arange(spectrum_len, dtype=float)
+        self.current_lambda = 0
+        self.unit = "px"  # traktujemy indeks widma jak pozycję piksela
+
     def _create_widgets(self):
         """Create GUI widgets"""
         # Main control frame at top
@@ -795,13 +769,7 @@ class HeatMapWindow(CustomToplevel):
         # Bottom row controls - calibration info
         bottom_row = Frame(main_control_frame, bg=self.DGRAY)
         bottom_row.pack(fill=X, pady=(5, 0))
-        
-        # Calibration status
-        cal_text = "Wavelength Calibrated" if self.calibrated else "Pixel Scale"
-        cal_color = 'lightgreen' if self.calibrated else 'orange'
-        Label(bottom_row, text="Scale:", bg=self.DGRAY, fg='white', font=('Arial', 9)).pack(side=LEFT)
-        Label(bottom_row, text=cal_text, bg=self.DGRAY, fg=cal_color, font=('Arial', 9, 'bold')).pack(side=LEFT, padx=(5,20))
-        
+
         # Figure: 2D heatmap (góra) + widmo (dół)
         self.fig = plt.figure(figsize=(12, 8), facecolor=self.DGRAY)
         gs = GridSpec(2, 1, height_ratios=[2, 1])
@@ -828,8 +796,7 @@ class HeatMapWindow(CustomToplevel):
         self.current_lambda = int(val)
         # Update wavelength label
         lambda_val = self.lambdas[self.current_lambda]
-        unit = "nm" if self.calibrated else "px"
-        self.wavelength_label.config(text=f"{lambda_val:.1f} {unit}")
+        self.wavelength_label.config(text=f"{lambda_val:.1f} {self.unit}")
         self._update_plots()
     
     def _update_plots(self):
@@ -843,16 +810,14 @@ class HeatMapWindow(CustomToplevel):
             self.ax_spectrum.clear()
             
             lambda_val = self.lambdas[self.current_lambda]
-            unit = "nm" if self.calibrated else "px"
+            unit = self.unit
             
             # 2D heatmap z ustalonym zakresem kolorów i stałymi osiami
             data = self.cube[:, :, self.current_lambda]
             im = self.ax2d.imshow(
-                data.T,
+                data,
                 cmap=cmap,
                 origin='lower',
-                extent=[self.x_extent[0], self.x_extent[1],
-                        self.y_extent[0], self.y_extent[1]],
                 interpolation='nearest',
                 vmin=self.vmin,
                 vmax=self.vmax,
@@ -860,19 +825,8 @@ class HeatMapWindow(CustomToplevel):
             self.ax2d.set_title(f"2D Heatmap - λ={lambda_val:.1f} {unit}", color='white', fontsize=12)
             self.ax2d.set_xlabel("X Position", color='white')
             self.ax2d.set_ylabel("Y Position", color='white')
-            # Wymuś stały zakres osi niezależnie od danych
-            self.ax2d.set_xlim(self.x_extent)
-            self.ax2d.set_ylim(self.y_extent)
-            # Zachowaj proporcje (kwadratowa siatka X/Y) i wycentruj
-            # 'datalim' zostawia ramkę osi stałą, a dane
-            # są centrowane w środku tej ramki.
             self.ax2d.set_aspect('equal')
             self.ax2d.set_anchor('C')
-            
-            # Set fixed layout
-            if not self._layout_set:
-                self.fig.subplots_adjust(left=0.1, right=0.9, top=0.95, bottom=0.08, hspace=0.3)
-                self._layout_set = True
             
             # Create/update colorbar for 2D heatmap (bez zmiany geometrii osi)
             if self.colorbar is None:
@@ -892,21 +846,13 @@ class HeatMapWindow(CustomToplevel):
                 except Exception:
                     pass
             
-            # Spectrum plot (bottom, full width)
-            mean_profile = self.cube.mean(axis=(0, 1))
+            # Spectrum plot (bottom, full width) – średnie widmo po całej próbce
+            mean_profile = self.cube.mean(axis=(0, 1)) if self.cube.size > 0 else np.zeros_like(self.lambdas)
             self.ax_spectrum.plot(self.lambdas, mean_profile, color='orange', linewidth=2, 
                                 label="Average Spectrum", alpha=0.8)
             self.ax_spectrum.axvline(lambda_val, color='red', linestyle='--', linewidth=2, 
                                    label=f"Current λ={lambda_val:.1f} {unit}")
-            
-            # Add wavelength range info if calibrated
-            if self.calibrated:
-                self.ax_spectrum.set_title("Calibrated Spectrum Profile", color='white', fontsize=14)
-                self.ax_spectrum.set_xlabel("Wavelength (nm)", color='white')
-            else:
-                self.ax_spectrum.set_title("Spectrum Profile (Pixel Scale)", color='white', fontsize=14)
-                self.ax_spectrum.set_xlabel("Pixel Position", color='white')
-            
+            self.ax_spectrum.set_title("Average Spectrum", color='white', fontsize=12)
             self.ax_spectrum.set_ylabel("Intensity", color='white')
             self.ax_spectrum.legend(facecolor=self.DGRAY, edgecolor='white', 
                                   labelcolor='white', fontsize=10)
