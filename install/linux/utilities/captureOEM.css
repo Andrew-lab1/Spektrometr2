@@ -1,0 +1,35 @@
+
+#Roi_Button_red{
+    background: rgba (255, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 1px;
+}
+
+#Roi_Button_red:hover{
+   background: rgba (255, 0, 0, 0.7);
+}
+
+#Ssroi_Button_red{
+    background: rgba (255, 0, 0, 0.4);
+    color: white;
+    border: none;
+    border-radius: 1px;
+}
+
+#Ssroi_Button_red:hover{
+   background: rgba (255, 0, 0, 0.6);
+}
+
+#Autoroi_Button_red{
+    background: rgba (255, 0, 0, 0.4);
+    color: white;
+    border: none;
+    border-radius: 1px;
+}
+
+#Autoroi_Button_red:hover{
+   background: rgba (255, 0, 0, 0.6);
+}
+
+

@@ -1,0 +1,23 @@
+﻿                   -- How to use PxLApiLite --
+                   ===========================
+
+The Pixelink SDK includes two versions of the Pixelink API binary; the fully
+featured variant (used by default), and a reduced footprint / reduced 
+functionality variant known as PxLApiLite.  This latter variant would be of
+interest to smaller run-time Linux environments that have more limited,
+resources -- such as an embedded Linux system.
+
+See the READ.ME.txt file for a detailed description of the differences between
+the two API variants.
+
+You can use the PxLApiLite variant, by simply deleting the default symbolic
+link file that points to the fully featured API variant, and create a new one
+that points to the API Lite variant.  That is, similar to:
+   rm ($PIXELINK_SDK_LIB)/libPxLApi.so
+   ln -s ($PIXELINK_SDK_LIB)/libPxLApiLite.so.a.b.c.d \
+         ($PIXELINK_SDK_LIB)/libPxLApi.so  
+Where $PIXELINK_SDK_LIB is where the Pixelink SDK library files were 
+installed, and 'a.b.c.d' is the version of the Pixelink API installed.
+  
+
+

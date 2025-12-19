@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../pixelinkPythonWrapper-master"
+		},
+		{
+			"path": "../pixelinksdk-for-ubuntu2404-pc_64-v35tar"
+		}
+	],
+	"settings": {}
+}

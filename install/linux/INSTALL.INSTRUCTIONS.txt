@@ -1,0 +1,370 @@
+﻿        Installing the PixeLINK SDK on your Linux system
+        ================================================
+
+0. Ensure you have the correct PixeLINK SDK Variant
+---------------------------------------------------
+  There are 12 variants of the PixeLINK SDK (for Linux):
+    - For the Ubuntu 16.04 Desktop OS:
+       o A 64-bit variant that is built for Intelx86 'PCs'.  These systems
+         may have an Intel, or an AMD processor.
+       o A 64-bit variant that is built for ARMv8 platforms.  The NVidea 
+         Jetson-TX1 is an example of such a platform.
+       o A 32-bit variant that is built for ARMv7 platforms.  The Odroid XU4 
+         is an example of such a platform.
+    - For the Ubuntu 18.04 Desktop OS:
+       o A 64-bit variant that is built for Intelx86 'PCs'.  These systems
+         may have an Intel, or an AMD processor.
+       o A 64-bit variant that is built for ARMv8 platforms.  The NVidea 
+         Jetson-TX2 is an example of such a platform.
+       o A 32-bit variant that is built for ARMv7 platforms.  The Odroid XU4
+         is an example of such a platform.
+    - For the Ubuntu 20.04 Desktop OS:
+       o A 64-bit variant that is built for Intelx86 'PCs'.  These systems
+         may have an Intel, or an AMD processor.
+       o A 64-bit variant that is built for ARMv8 platforms.  The NVidea 
+         Jetson-Xavier is an example of such a platform.
+    - For the Ubuntu 22.04 Desktop OS:
+       o A 64-bit variant that is built for Intelx86 'PCs'.  These systems
+         may have an Intel, or an AMD processor.
+       o A 64-bit variant that is built for ARMv8 platforms.  The Raspberry
+         Pi 4 is an example of such a platform.
+    - For the Ubuntu 24.04 Desktop OS:
+       o A 64-bit variant that is built for Intelx86 'PCs'.  These systems
+         may have an Intel, or an AMD processor.
+       o A 64-bit variant that is built for ARMv8 platforms.  The Raspberry
+         Pi 5 is an example of such a platform.
+   
+   If you are a different Debian-based OS on your ARM platform, then item 10
+   below may be of assistance in getting the SDK and the cameras to work with
+   your system.
+
+1. Install prerequisite libraries
+---------------------------------
+  The Pixelink API uses the libraries listed below.  Please install the latest
+  variant of these libraries on your system.  Be sure to choose the 64-bit 
+  variant for PCs and ARMv8s, the 32-bit variant for ARMv7s. 
+    - GNU C++ toolchain, including the G++ compiler/linker.  For instance, you
+      could use the following command to install the necessary tools to build
+      basic applications (including the GNU C++ toolchain):
+         sudo apt-get install build-essential
+    - If you intend to use the Pixelnk API Python interface, then you will
+      need to install Python package installer:
+         sudo apt-get install python3-pip
+  As explained in the READ.ME.txt file, there are two variants of the Pixelink
+  API; the standard (default) version that is fully functional, and a 'Lite'
+  version that has reduced dependencies and functionality.  The standard 
+  version of the API has the following additional dependencies:
+    - SDL2.  Simple Directmedia Layer, used principally for video previewing 
+      capabilities.  For instance, you can download the 2.0 version of this
+      library with the following command:
+         sudo apt-get install libsdl2-2.0
+      Additionally, if you intend to develop (Gnome based) GUI applications, 
+      similar to the capture OEM sample application, you will need the 
+      development files for this library.  That is:
+         sudo apt-get install libsdl2-dev 
+    - GTK+3 and Glade, used for the (Gnome-based) GUI applications 
+      captureOEM and simpleGui.  GTK+3 is a dependent library of Glade, so
+      installing Glade will also install GTK+3.  Your version of Gnome will
+      have software package management tool, it's usually easiest to use it
+      to download the Glade tool.  Alternatively, you can use the following
+      command to get Glade:
+         sudo apt-get install glade
+
+  NOTE:Some of these dependent libraries may not be part of 'official' 
+  distribution for your particular install, as they rely on open-source 
+  software.  If your system cannot find the above libraries, then you
+  can update the search repositories with commands such as:
+       sudo add-apt-repository universe
+       sudo add-apt-repository multiverse
+       sudo apt-get update
+
+2. Install the PixeLINK SDK files
+---------------------------------  
+  All of the PixeLINK SDK files have been archived into the compressed archive
+  file PixelinkSdk-for-zzzzz-vx.y, where 'zzzzz' identifies the target OS for 
+  the specific install (such as Ubuntu24.04-PC_64 for a 64-bit build of Ubuntu
+  v14.04 on a PC platform), and 'x' and 'y' refer to the version and 
+  sub-version respectively.  Before de-compressing this archive, you should 
+  consider an 'appropriate' location for the PixeLINK files.  For example, a 
+  single user install may want to locate the files off of the directory 
+  ~/PixeLINKSdk, whereas a multi-user install would want the files located in a
+  more central location.  When decompressed (using a command like tar -xzvf 
+  PixelinkSdk-for-Ubuntu18.04-PC_64-v2.0.tar.gz) , the PixeLINK SDK will be 
+  expanded into the following folders:
+    - lib.  This folder contains the shared libraries required to build (link) 
+      camera control applications.  Your build process must be able to 'locate' 
+      these libraries (see step 4 below).  The file HOW.TO.USE.PxlApiLite.txt
+      contains instructions on how to use the 'Lite' variant of the Pixelink
+      API (as explained in the READ.ME.txt file).
+    - include.  This folder contains the 'C' header files describing the 
+      programmers interface to the PixeLINK API.  
+    - samples.  This folder contains a series of other folders which provide 
+      sample applications that use the PixeLINK API.  These folders contain all 
+      of the source and makefiles needed to build the application.
+    - utilities.  This folder contains any PixeLINK utility programs, provided
+      in binary form.  See the READ.ME.txt file for a list of these utilities.
+
+3. Create a PIXELINK_SDK_INC and PIXELINK_SDK_LIB environmental variables
+-------------------------------------------------------------------------
+  These environmental variables identify the folder where the PixeLINK SDK files
+  have been installed (from the previous step).  See the makefiles in the sample 
+  application to see how this variable can be used to build applications.
+
+  The easiest way to do this, is to create and export them within a startup
+  script.  One way of doing this is shown in step 5.
+
+4. Ensure your applications are building for Linux
+--------------------------------------------------
+  In order to create new Linux applications, you will need to ensure that the
+  application uses the Linux system header files.  The PixeLINK API uses the 
+  same header files for Linux and Windows.  To ensure PixeLINK API used by
+  your new application includes the Linux system header files, as opposed to 
+  those used by Windows, define the PIXELINK_LINUX compilation symbol.  See 
+  the makefile from the sample applications for an example.
+
+5. Configure your system so that the runtimes can find the PixeLINK shared 
+objects
+--------------------------------------------------------------------------
+  You could do this by locating the shared objects in a common location (such as
+  /lib) and using the ldconfig to create the necessary links to the shared 
+  libraries, however this requires super user privilege.  Alternatively, you can
+  add the path $PIXELINK_SDK_LIB (where PIXELINK_SDK was created in step 3 
+  above) to the environmental variable LD_LIBRARY_PATH.
+
+  For example, assuming the Pixelink SDK files from step 2 were installed to 
+  the ~/PixelinkSdk folder, you could accommodate step 3 and 5 by adding the 
+  following set of commands to a particular users ~/.bashrc file:
+      # +++++ Pixelink cameras/SDK +++++
+      PIXELINK_SDK_INC=~/PixelinkSdk/include
+      PIXELINK_SDK_LIB=~/PixelinkSdk/lib
+      LD_LIBRARY_PATH=$PIXELINK_SDK_LIB
+      export PIXELINK_SDK_INC
+      export PIXELINK_SDK_LIB
+      export LD_LIBRARY_PATH
+      # ----- Pixelink cameras/SDK -----
+
+6. Ensure your applications build against the PixeLINK Api
+---------------------------------------------------------
+  The PixeLINK API is 'packaged' as a single dynamic libraries; PxLApi.
+  Be sure to include this libraries when linking your application.  See the 
+  sample makefiles for more information.
+  
+7. If you will be running Python applications, install the Python package
+-------------------------------------------------------------------------
+  This is done using the pip3 command, as in:
+     pip3 install pixelinkWrapper
+  See ~/PixeLINKSdk/Python/README.md for more details.
+
+8. Add read/write privilege to the camera device(s) (USB cameras only)
+----------------------------------------------------------------------  
+  PixeLINK API applications require read and write access to the USB device (the
+  camera) in order to communicate with the device.  On Ubuntu, this can be 
+  accomplished by creating a 'PixeLINK.rules' file in the '/etc/udev/rules.d'
+  folder, that contains the following lines:
+    SUBSYSTEM=="usb",ATTRS{idVendor}=="1996",MODE="0666"
+    SUBSYSTEM=="usb_device",ATTRS{idVendor}=="1996",MODE="0666"
+  Note that you will need super user privilege to create this file in this 
+  folder, but once this is done, all users will be able to control all PixeLINK
+  cameras connected to the system.  For instance, the following command will
+  open/create this file:
+    sudo gedit /etc/udev/rules.d/PixeLINK.rules
+
+9. Increase the amount of receive buffer space available to devices (on newer installs
+   this is rarely required).
+---------------------------------------------------------------------------------
+  
+  9.1 - USB cameras
+  -----------------
+
+  By default, the Linux kernel will allocate as little as 16MB of buffer space 
+  for all USB devices.  For larger, higher speed devices (such as the PixeLINK 
+  USB3 cameras) this is not adequate.  At 400 MB/s, 16MB of buffer space only 
+  amounts to 40 ms of buffer time before data loss occurs.  Calling the API
+  function PxLSetStreamState to turn on the camera stream, will return a 
+  warning return code of ApiSuccessLowMemory if your system is currently
+  configured for very little buffer space.  See the sample application
+  lowLinkMemory for details.
+
+  To increase the amount of USB buffer space to a more appropriate value 
+  (in this case, 1GB), do the following:
+
+  9.1.1 - Systems using GRUB based bootloader (such as Ubuntu running on a PC)
+  ----------------------------------------------------------------------------
+     - Edit the file ‘/etc/default/grub’ and look for the line 
+       ‘GRUB_CMDLINE_LINUX_DEFAULT=”{some_text}”
+     - Append ”usbcore.usbfs_memory_mb=1000” to the end of some_text.  For 
+       example:
+           GRUB_CMDLINE_LINUX_DEFAULT=”quiet splash” 
+       becomes
+           GRUB_CMDLINE_LINUX_DEFAULT=”quiet splash usbcore.usbfs_memory_mb=1000”
+     - Effect this change with the following command:
+           sudo update-grub
+     - Manually set the memory limit (to 1GB) by entering the command: 
+           ‘sudo modprobe usbcore usbfs_memory_mb=1000’
+     - Reboot your system for this change to take effect.
+
+  9.1.2 - Nvidia Jetsons:
+          Tk1  (with L4T drivers version 21.1 or newer)
+          Tx1  (with L4T drivers version 24.1 or newer)
+          Tx2  (with L4T drivers version 28.1 or newer)
+  ------------------------------------------------------------------------------  
+     The Jetson does not use the GRUB bootloader.  However, it does provide a 
+     means to ‘configure’ the USB environment, making it more suitable for a
+     high speed USB camera.  In particular, the following file must be edited:
+          ‘/boot/extlinux/extlinux.conf’
+     In particular, ensure the APPEND definition contains the following two
+     entries:
+          usb_port_owner_info=2
+          usbcore.usbfs_memory_mb=1000
+     Note that the usb_port_owner_info entry may already be there, but set to a
+     value of 0.  A 0 value will have the USB port operate in USB2 mode, while
+     a value of 2 is necessary for USB3 operation. 
+
+     A reboot will be required to effect this change. 
+  
+  9.1.3 - Raspberry Pi 4 running Raspbian:
+  ------------------------------------------------------------------------------
+     To ensure the USB host controller has sufficient buffer space to stream at
+     high data rates, add the following text near the beginning of the file 
+     /boot/cmdline.txt
+          usbcore.usbfs_memory_mb=1000
+
+     A reboot will be required to effect this change. 
+
+  9.1.4 - Raspberry Pi 4 running Ubuntu:
+  ------------------------------------------------------------------------------
+     To ensure the USB host controller has sufficient buffer space to stream at
+     high data rates, the /etc/rc.local file needs to be created or modified.
+     If this file is not already on your system, you can create it as follows:
+        'sudo touch /etc/rc.local'
+        'sudo chmod 744 /etc/rc.local'
+     The add the folloing lines to the file:
+         #!/bin/sh -e
+         echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb
+         exit 0
+     
+     If this file is already on your system, then add the follwing text near the 
+     bottom of the file 
+          echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb
+
+     A reboot will be required to effect this change. 
+
+  9.1.5 - Other Embedded platforms (such as the Ubuntu running ARM based 
+          platforms like the ODROID-XU3 & XU4).
+  ------------------------------------------------------------------------------  
+     For these systems, the amount of USB buffer space can be via a 
+     configuration file that gets loaded at boot time.  Specifically, edit the 
+     following file:
+          '/media/boot/boot.ini'
+     Towards the end of this file, you will see an entry that starts with 
+     'setenv bootargs'.  You must add 'usbcore.usbfs_memory_mb=1000' to that 
+     line.
+
+     A reboot will be required to effect this change. 
+
+  9.2 - Gigabit Ethernet (including 10 GigE) cameras
+  --------------------------------------------------
+
+  9.2.1 - Redefining the IP stack receive buffer space
+  -----------------------------------------------------
+  By default, the Linux kernel will allocate as little as mere 256 bytes of 
+  receive buffer space for it's IP stack.  For larger, higher speed devices 
+  (such as the Pixelink 10 GigE cameras) this is not adequate.  Calling the 
+  API function PxLSetStreamState to turn on the camera stream, will return a 
+  warning return code of ApiSuccessLowMemory if your system is currently
+  configured for very little buffer space.  See the sample application
+  lowLinkMemory for details.
+
+  Increasing the amount of receive buffer space to a more appropriate value 
+  (in this case, 25 MB) is outlined as follows.  It's recommended that you
+  allocate enough receive buffer space for at least 2 images.  For instance,
+  if you will be using your system to stream a 6 megapixel camera using a 
+  16-bit pixel format, then you should have at least 24 MB of receive buffer.
+
+     - Edit the file ‘/etc/sysctl.conf’ (requires super-user privilege)
+     - Add the following to the file
+           # Allow 25MB of receive buffer memory
+           net.core.rmem_max=26214400
+           net.core.rmem_default=26214400
+     - Effect this change with the following command:
+           sudo sysctl -p
+           
+  9.2.1 - Enabling 'Jumbo' Ethernet frames (packets)
+  --------------------------------------------------
+  The original Ethernet specification defined the maximum packet size as
+  1500 bytes.  This packet size is too small to accommodate newer high 
+  capacity / throughout network devices such as Pixelink 10 GigE cameras. 
+  Fortunately, most current NICs and switches, can accommodate larger 'jumbo'
+  frames.  
+  
+  To ensure maximum performance from your Pixelink 10 GigE camera, ensure that
+  the systems NIC, and all intermediate Ethernet switches between the host 
+  system and the camera, have defined the maximum frame size of at least 9000
+  bytes.   
+  
+  Note that the Raspberry Pi 4 platform does not support jumbo frames without
+  modifications to its kernel.  See the 'Known Issues' in the READ.ME.txt
+  file for more details.  
+  
+
+10. Supplemental Information for other installs
+----------------------------------------------
+
+  The PixeLINK SDK was designed to work with Ubuntu Desktop OS.  However, we 
+  recognize that some customers may prefer to work with some platforms that
+  use a Debian-based OS other than Ubuntu.  This is particularly true for the
+  varying ARM platforms.  We maintain a variety of different Linux platforms 
+  that we use to design and test against.  However, we have a number of 
+  customers that are using Pixelink cameras / SDK on other platforms.  Listed
+  here is a brief discription of some of those platforms, and perhaps a hint
+  or two of some configuration options that may be helpful in your specific
+  installation.
+  
+  Note that in may instances, it may be easier to install/run the 'Lite' 
+  variant of the API on these alternate platforms, as it has fewer 
+  dependencies.
+  
+  10.1 - Raspberry Pi 3 running Raspbian
+  --------------------------------------
+  We have tested our camera with a Raspberry Pi 3 system, running a Raspbian 
+  (v1.3) OS.  However, this version of the OS contains some libraries from 
+  Ubuntu 14.04, and others from Ubuntu 16.04.  To assist users who are 
+  attempting to do similar, we have included copies of some of the open 
+  source libraries used by the PixeLINK SDK.  Specifically, the folder 
+  'supplementalLibrariesForOtherPlatforms' contains several archive files, 
+  each file containing specific libraries that were used to build specific 
+  variants of our SDK.  If you have tried running the PixeLINK SDK that most 
+  closely matches your distribution, but are having difficulties because of 
+  mismatched library versions, then the specific library version you need may 
+  be located in one of these archive files.
+
+  For example, for the Raspberry Pi 3 running Raspbian 1.3 (which uses ARMv7 
+  binaries), the PixeLINK SDK to use is 
+  'PixeLINKSdk-for-Ubuntu14.04-ARMv7-vx.y.tar.gz', together with supplemental 
+  libraries in 'SupplementalLibraries-Ubuntu14.04-ARMv7).
+
+  10.2 - QNX
+  ----------
+  QNX offers a USB3 Vision Driver for their OS.  We have a number of customers
+  that are using this driver to control a Pixelink USB3 camera.
+  
+  10.3 - Arch
+  -----------
+  Arch does not use GRUB to define the amount of buffer space to allocate to 
+  the USB stack(see 9.1 above).  Rather, the below command can be used to 
+  ensure the USB stack has sufficient memory:
+    sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'
+  
+11.0 - Specific versions of dependent lbraries
+----------------------------------------------
+   
+  Note that supplemental libraries included are specific to the version required
+  by the PixeLINK SDK.  So, for instance, it will include a symbolic link for
+  the library libopenjpeg.so.5 (as well as the specific library as well), but it
+  does not update the more generic link libopenjpeg.so -- so it's possible to
+  have these supplemental variants co-located with the ones that are already 
+  installed on this platform.
+
+
+  
+

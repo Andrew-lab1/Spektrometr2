@@ -1,0 +1,8 @@
+sudo apt-get install build-essential
+sudo apt-get install libsdl2-2.0
+sudo apt-get install glade
+sudo apt-get install ffmpeg
+sudo add-apt-repository universe
+sudo add-apt-repository multiverse
+sudo apt-get update
+sudo LD_LIBRARY_PATH=/usr/local/lib PIXELINK_SDK_LIB=/usr/local/lib .venv/bin/python index.py

@@ -1,0 +1,331 @@
+﻿     PixeLINK SDK - Version 3.5
+     ==========================
+
+0. Table of Contents
+-----------------
+  1. Manifest
+  2. Installation Information
+  3. Programmatic Description
+  4. Further limitations / restrictions
+  5. Differences between the standard API, and 'API Lite'
+  6. Change History
+  7. Known Issues
+
+1. Manifest
+-----------
+  The file INSTALL.INSTRUCTIONS.txt describes the set of files comprising
+  the PixeLINK API, as well as suggested locations of where the files
+  should be placed.  
+
+  This version of the API includes the following C and C++ sample programs
+  (many of the same samples are also provided in Python).  Note that this 
+  may not be exhaustive:
+     autoExposure - Program that shows, in general, how to work with camera 
+        features that support 'auto adjustment'.  More specifically, this
+        program will interact with the cameras exposure control.
+     autoWhiteBalance - Performs an auto white balance for the cameras, while
+        providing 'guidance' to the algorithm, on where to find a white area
+        in the image.
+     callback - A simple application demonstrating how to setup/use callbacks.
+     callbackCompressed - A simple application demonstrating how to setup/use callbacks 
+        while working with compressed images.
+     captureOEMLite - A GUI based application that controls many different 
+        camera features.  It is built using Glade and GTK+3.bu
+     captureOEM - A more complete GUI based application that controls many 
+        different camera features.  It is built using Glade and GTK+3.
+     commitSettingsAsDefault - Simple program to cause a camera to commit its
+        current settings to non-volatile memory, so that these settings will be used
+        with each power cycle of the camera.
+     countImagesViaCallback.  Using the Pixelink API callback mechanism, sinks
+        camera images as quickly as possible, reporting on the number of images
+        received and lost.  This application is particularly useful if there
+        is suspicion that the current camera settings will source image data at
+        a rate that exceeds the hosts capabilities (due to hardware limitations
+        such as bus bandwidth (USB, Network stack, or PCIe)).
+     eventCallback -  Demonstrated how to register for camera reported events.
+        Specifically, this application will report on all camera generated
+        events.
+     frameActions - Demonstrates how to use frame actions to synchronize the capture
+        of frames across multiple cameras, synchronized to the same point in time.
+     getCameraFeature - Demonstrates how to get some information about a camera 
+        feature. 
+     getCameraInfo - Demonstration of a trivial interaction with the PixeLINK 
+        API.  It simply displays information on attached cameras.
+     getCompressedImage - Grabs comporessed images from the camera, and decompresses
+        them, storing the viewabable images to disk.
+     getHDRSnapshot - Will capture High Dynamic Range snapshots for a camera that
+        supports this feature.
+     getMultipleSnapshots - Collects multiple BMP snapshots from a camera.
+     getNextFrame - Simple program to find and stream a camera, using a robust
+        frame grab algorithms, if collects images from the camera and saves 
+        them to files.
+     getPolarShapshot - Creates a snapshot of each of the individual polar channels
+        on a polar camera.
+     getSnapshot - A 'C' sample code to capture a images from a PixeLINK camera
+        and save the encoded images to a variety of file types.
+     getXML - Reads the SML file of a GigE or USB3 camera, saving it to a file.
+     gigeHeartbeat - Demonstrates how to set the GigE heartbeat timeout.
+     gpinput - Demonstrates the use of a General Purpose Input
+     gpio - Demonstrates the use of a General Purpose Input, and a General 
+        Purpose Output.
+     imageWriter - Demostrates how to use PxLGetNextFrame to quickly capture images,
+        and writes them to disk.
+     jumboFrames - A demonstration of how to enable jumbo frames for a 1/10 Gigabit 
+        Ethernet camera
+     lowLinkMemory - Shows how to accommodate systems with sub-optimal amount
+        of memory allocated for link level buffering (USB or IP stack).
+     measureCallbackRate - Sample code to show how to create a simple callback.  
+        This program simply calculates the frame rate of the camera (via 
+        callbacks).
+     measureGetNextFrameRate - Sample code to show a very simple frame grab.  
+        The sample application 'getNextFrame' for a more robust frame grab 
+        example.  This program simply calculates the frame rate of the camera 
+        (via frame grabs).
+     multiCameraPreview - Shows all connected PixeLINK cameras, and allows
+        you to independently preview each of the cameras.
+     openCVSnapshot - Demonstrates how to use a Pixelink camera with openCV.
+        Specifically, uses openCV to create a snapshot of an image captured from
+        a Pixelink camera.
+     preview - Finds a camera, and starts the stream with preview.
+     ptpV2 - Demonstarte how to use IEEE 1588 (Precision Time Protocol, or PTPv2) 
+        on a Pixelink camera.
+     recoverCamera - demonstrates how to put the camera into a known state.
+        This is especially useful if your application crashes without having
+        done its cleanup operations (such as PxLUnitialize).
+     saveSettings - Demonstrates how to save camera settings to non-volatile
+        storage, as well as ow to restore the camera settings back to factory
+        default values.
+     setPreviewSettings - Previews the camera, and demonstrates how to make 
+        adjustments to the preview window, as well as some camera settings
+        that affect the camera's preview.
+     simpleGUI - Uses Glade and GTK+3 to create a simple GUI based camera
+        application.
+     setIpAddress - Simple program to set the IP Address on a 1/10 GigE camera 
+        -- either as a static IP address, or to have the camera use dynamic IP 
+        address assigment via DHCP or LLA
+     softwareTriggerWithCallback - A demonstration of a special software 
+        triggering mode.  See 'trigger' sample program for the more typical
+        use of software triggering.
+     static_getCameraInfo - The same as 'getCameraInfo', but using the static
+        library of the Pixelnk API.  Note that to build against the static
+        library, be sure the build path is such that the linker does not
+        find the dynamic library first.
+     static_getNextFrame - The same as 'getNectFrame', but using the static
+        library of the Pixelnk API.  Note that to build against the static
+        library, be sure the build path is such that the linker does not
+        find the dynamic library first.
+     static_preview - The same as 'preview', but using the static
+        library of the Pixelnk API.  Note that to build against the static
+        library, be sure the build path is such that the linker does not
+        find the dynamic library first.
+     triggering - A simple example of the use of the two triggering types: 
+        software & hardware.
+     whiteBalance - Demonstrates how you can control the white balance on a (color)
+        camera.  Furthermore, it also can instruct the camera to perform
+        manual color adjustments, as well as automatic white balance.
+
+  Furthermore, this API includes the following utility program:
+     captureOEM - A GUI (Gnome) based application that allows you to control
+         a number of the camera features.  The source code is also provided in
+         samples/captureOEM.  This program only wirks with the standard API (IE, 
+         NOT API Lite).
+     findGevCameras - searches all network LAN interfaces, reporting on all
+         GigE Vision cameras found (be they from Pixelink, or otherwise).
+     PxLCameraUpdater - Utiity to program cameras with new binary files, notably
+         loads for the FPGA, the firmware, and the camera XML file.
+     PxLVisionAccess - This is a command line utility that allows a user
+         to 'peek' and 'poke' at specific registers within the camera, allowing
+         you to query and/or set, specific camera features.  This utility
+         should only be used with consultation with PixeLINK.
+
+  And Finally, we have also included a wrapper for the Robot Operating System (ROS2)
+  
+2. Installation Information
+---------------------------
+  See the file INSTALL.INSTRUCTIONS.txt
+
+3. Programmers View of the PixeLINK API
+----------------------------------------
+  This 'package' is a Linux variant of the PixeLINK API offered on the 
+  Windows environment.  The complete documentation set for the PixeLINK API can
+  be found at www.pixelink.com.
+
+  This Linux variant of the PixeLINK supports the complete set of API services 
+  (functions) that can be found on the Windows variant, EXCEPT the following
+  functions:
+    PxLCreateDescriptor/PxLUpdateDescriptor/PxLRemoveDescriptor
+      Currently, only USB3 and 10 GigE  cameras are supported on Linux, and
+      these cameras do not support creating/modifying 'descriptors'.  Note 
+      however, they DO support the use the structure FRAME_DESC returned with 
+      each frame grab.
+    PxLGetClip/PxLGetEncodedClip/PxLFormatClip
+      The Linux varaint of the Pixelink SDK, no longer supports video capture
+    PxLGetNumberControllers/PxLAssignController/PxLUnassignController
+      The use of ancillary controllers, is not supported on Linux.
+  
+4. Further Limitations / Restrictions
+-------------------------------------
+  - USB cameras should be connected to the USB3 port, using a (good quality) 
+    USB3 cable.  The camera/API works (at a reduced capacity) when connected 
+    to a USB2 port, but has not been extensively tested.
+  
+5. Differences between the standard API, and 'API Lite'
+--------------------------------------------------------
+  The Pixelink SDK includes two versions of the Pixelink API binary; the fully
+  featured variant (used by default), and a reduced footprint / reduced 
+  functionality variant known as PxLApiLite.  This latter variant would be of
+  interest to smaller run-time Linux environments that have more limited,
+  resources -- such as an embedded Linux system.
+  
+  The Lite variant of the API binary is marginally smaller than the standard 
+  API, but the number of dependent libraries significantly reduced.  However,
+  that reduction in library dependencies comes at the cost of reduced 
+  functionality.  Most notable, the API Lite variant does not have image preview.
+  More specifically, the API Lite does not support the following API 
+  functions / Features / Types:
+    - PxLFormatClip
+    - PxLFormatClipEx
+    - PxLGetClip
+    - PxLGetEncodedClip
+    - PxLSetPreviewSettings
+    - PxLSetPreviewState
+    - PxLSetPreviewStateEx
+    - IMAGE_FORMAT_PNG
+    
+  Applications can easily discern the Lite API variant from the standard API 
+  variant (at runtime) by examining the return code from the PxLInitialize(Ex) 
+  function; the Lite variant will return ApiSuccessApiLiteWarning on successfully 
+  initializing a camera.
+
+6. Change History
+-----------------
+  6.1. Changes from 3.4 to 3.5
+     - Updated to the latest (Pixelink10) compression strategy.
+     - Removed support for video capture
+     - Added support for Ubuntu 24.04
+     - Removed support for Ubuntu 16.04
+  6.2. Changes from 3.3 to 3.4
+     - Added support for PL-U camera line, which includes support of FEATURE_COMPRESSION
+     - Added support for new API functions PxLSetFrameBufferPolicy and PxLGetStreamState
+     - Added PxLCameraUpdater tool to update camera binaries
+  6.3. Changes from 3.2 to 3.3
+     - Added support for Ubuntu 22.04, 64 bit varaint on both PC and ARMv8
+     - Added support for Ubuntu 20.04, 64 bit varaint on ARMv8 
+     - Added support for the 'alpha' pixel formats (RGBA, BGRA, ARGB, and ABGR).
+     - Included wrapper for Robot Operating System (ROS2).
+  6.4. Changes from 3.1 to 3.2
+     - Added support for cameras capable of on-camera flip operations.
+     - captureOEM application can now save/load camera settings to/from a file.
+  6.5. Changes from 3.0 to 3.1
+     - Added 'Lite' variant of the Pixelink API 
+  6.6. Changes from 2.5 to 3.0
+     - Added support for Pixelink PL-X cameras, with 10 Gigabit Ethernet 
+       interfaces.
+     - Added Python interface
+     - Added support for Ubuntu 20.04
+     - Removed support for Ubuntu 14.04
+     - Added sample applications showing new PL-X type functionality
+     - Added support for the experimental video encoder - H.265.  Note that
+       this encoder makes use of pre-release libraries.
+     - Added the sample application  countImagesViaCallback
+  6.7.  Changes from Version 2.4 to Version 2.5
+     - Added support for cameras that support native pixel formats RGB24 and 
+       BGR24
+  6.8. Changes from Version 2.3 to Version 2.4
+     - Added support for Pixelink Polar and cameras that support high dynamic
+       range (HDR).
+     - Added support for Ubunutu 18.04 (on Intel x86 'PCs').
+  6.9. Changes from Version 2.2 to Version 2.3
+     - Added new application, captureOEM
+     - Added support for new Auto features, AutoRoi, AutoGain, and AutoExposure 
+       limits.
+     - Added support for 10-bit packed pixel formats.
+  6.10. Changes from Version 2.1 to Version 2.2
+     - Added support for Ubuntu 16.04
+     - Folded in v2.1 patch containing JPEGDLL32v1.1.  This patch eliminates 
+       namespace collisions with some libraries, such as OpenCV
+     - Added FEATURE_FOCUS control to captureOEMLite
+  6.11. Changes from Version 2.0 to Version 2.1
+     - Added support for (H264) video capture.  Specifically, added the
+       methods:
+         . PxLGetEncodedClip
+         . PxLFormatClipEx
+     - Added support for General Purpose Input (GPI), whereby the hardware 
+       trigger resource can be re-mapped to serve as  GPI
+     - Added support for 64-bit ARM installs (ARMv8 -- aarch64)
+  6.12. Changes from Version 1.0 to Version 2.0
+     - Improvements in image quality of the preview window; hardware acceleration
+       is now used utilized if the platform supports it.
+     - Support for USB3 cameras with binary files that are USB3 Vision (U3V) 
+       certified, as well as cameras that contain binaries that are pre-U3V
+       certified.
+     - FEATURE_FOCUS can now accept 2 parameters when PxLSetFeature is called
+       with the FEATURE_FLAG_ONEPUSH bit of the flags parameter is set (to
+       perfrom a one-time auto focus operation).  These two additional
+       parameters (if supplied) will represent the range over which the auto
+       focus it to be applied.
+     - Added support for CAMERA_INITIALIZE_EX_FLAG_ISSUE_STREAM_STOP with 
+       PxLInitializeEx to assist with recover from unexpected termination of 
+       camera applications.
+     - Cleanup operations are now performed on signals SIGINT and SIGTERM.
+     - Support for cameras equipped with a General Purpose Input.
+
+7. Known Issues
+---------------
+  7.1. Running applications camera applications built using our API, may show
+     'libGL error: file not found' messages when the application first starts 
+     on Odroid platforms.  The API uses the SDL2 library for image preview.  
+     However, that library uses the OpenGL form any of its 'advanced' 
+     graphics operations.  However, Odroid platforms do not support the 
+     complete OpenGL library, only the more limited OpenGL-ES variant.  The 
+     PixeLINK API does not make use of these more advanced operations, so as 
+     such, it will never attempt to call functions within these missing 
+     (sub)libraries.
+ 
+     If you choose, you can configure your Odroid system to not use the 
+     'armsoc' video driver in favor of the more 'generic' X11 video driver.  
+     This can be done, for instance, by renaming the file 
+     'etc/X11/xorg.conf' to something else.  The SDL2 library will detect the 
+     more generic driver when your application starts, and in turn, will not 
+     attempt to load the libraries with the more advanced graphics.  Thus, you 
+     should no longer get the error messages when your application starts up.  
+     However, other applications you run on your system may be adversely 
+     affected when your system is configure in this way, as your system can no
+     longer take advantage of the ARM optimized handling done by the armsoc
+     video driver.
+     
+  7.2. As explained in the INSTALL.INSTRUCTIONS.txt file, jumbo frames must be
+     enabled when using high data rates on 10 GigE cameras.  Although the
+     Raspberry Pi 4 hardware does support jumbo frames, the default kernel does 
+     not enable them.  Adding support for jumbo frames, requires that you 
+     download the source files for your kernel, and modify the if_vlan.h file 
+     as follows:
+        #define VLAN_ETH_DATA_LEN 1500 /* Max. octets in playload */
+        #define VLAN_ETH_FRAME_LEN 1518 /* Max. octets in fraem sans FCS */
+     becomes:
+        #define VLAN_ETH_DATA_LEN 9000 /* Max. octets in playload */
+        #define VLAN_ETH_FRAME_LEN 9018 /* Max. octets in fraem sans FCS */
+     And the file if_ether.h changes from:
+        #define ETH_DATA_LEN 1500 /* Max. octets in playload */
+        #define ETH_FRAME_LEN 1514 /* Max. octets in fraem sans FCS */
+     to:
+        #define ETH_DATA_LEN 9000 /* Max. octets in playload */
+        #define ETH_FRAME_LEN 9014 /* Max. octets in fraem sans FCS */
+     And finally, you need to change bcmgenet.c from
+        #define RX_BUF_LENGTH 2048
+     to:
+        #define RX_BUF_LENGTH 10240
+        
+     The kernel must then be rebuilt and installed 
+     
+   7.3. Unfortunately, the version of the SDL2 binaries that are packaged 
+      with Ubuntu 18.04 on ARMv8 platforms, contains a bug that prevents
+      the Pixelink api library, from running correctly.  Consequently, any 
+      camera application that is built using the Pixelink API, will terminate 
+      with an 'Assert failure' containing the following message:
+          'Argument to dbus_message_new_method_call() were incorrect'
+          
+      The file SPECIAL.INSTALL.INSTRUCTIONS.UBUNTU.18.04.ARMV8.txt has 
+      instructions on how to correct this behavior.
+
+
