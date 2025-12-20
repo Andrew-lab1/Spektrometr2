@@ -1,0 +1,2 @@
+# Marker file so that Git tracks this directory.
+# Real measurement CSV files can stay in .gitignore.

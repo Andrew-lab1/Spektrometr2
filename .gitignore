@@ -64,8 +64,10 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-backup/
-logs/
+backup/*
+!backup/.gitkeep
+logs/*
+!logs/.gitkeep
 *.log
 requirements_full.txt
 
@@ -78,5 +80,7 @@ requirements_full.txt
 # Camera/hardware specific
 *.raw
 *.bin
-calibration_images/
-test_images/
+calibration_images/*
+!calibration_images/.gitkeep
+test_images/*
+!test_images/.gitkeep
