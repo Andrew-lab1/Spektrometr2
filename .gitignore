@@ -64,7 +64,6 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-measurement_data/*.csv
 backup/
 logs/
 *.log

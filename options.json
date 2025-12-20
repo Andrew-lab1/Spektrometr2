@@ -4,17 +4,13 @@
     "width": 400,
     "height": 300,
     "starting_corner": "bottom-right",
-    "xmin": "1070",
-    "xmax": "1125",
     "port_x": "/dev/ttyUSB0",
     "port_y": "/dev/ttyUSB1",
     "sequence_sleep": 0.5,
-    "camera_index": 1,
-    "lambda_min": 400.0,
-    "lambda_max": 700.0,
-    "lambda_calibration_enabled": true,
     "lens_magnification": 1.0,
-    "spectrum_range_min": 500.0,
-    "spectrum_range_max": 580.0,
-    "await": 0.01
+    "spectrum_range_min": 0.0,
+    "spectrum_range_max": 2048.0,
+    "await": 1.1,
+    "exposure_time": 1000.0,
+    "gain": 10.0
 }
