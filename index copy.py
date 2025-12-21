@@ -32,7 +32,6 @@ except FileNotFoundError:
         'xmin': '0', 'xmax': '2048',
         'port_x': 'COM5', 'port_y': 'COM9',
         'camera_index': 0,                           
-                         
         'exposure_time': 10.0,                                 
         'gain': 1.0                          
     }
