@@ -1,8 +1,3 @@
-"""
-Spektrometr Application - Main File
-Refactored with proper threading and structure
-"""
-
 import os
 import sys
 import time
@@ -14,7 +9,7 @@ import json
 import csv
 import glob
 
-# Third-party imports
+                     
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,27 +19,25 @@ from PIL import Image, ImageTk
 import serial
 import serial.tools.list_ports
 from pixelinkWrapper import PxLApi
-
-
-# Load configuration
+        
 try:
     with open('options.json', 'r') as f:
         options = json.load(f)
 except FileNotFoundError:
     options = {
-        'step_x': 20, 'step_y': 20, 'offset': 10,  # Values in micrometers (1 pulse = 2 μm)
-        'width': 200, 'height': 200, 'await': 0.01,  # Width/height in micrometers
-        'sequence_sleep': 0.1,  # Sleep time during sequence measurements
-        'starting_corner': 'top-left',  # Starting corner for scanning sequence
+        'step_x': 20, 'step_y': 20, 'offset': 10,                                          
+        'width': 200, 'height': 200, 'await': 0.01,                               
+        'sequence_sleep': 0.1,                                           
+        'starting_corner': 'top-left',                                         
         'xmin': '0', 'xmax': '2048',
         'port_x': 'COM5', 'port_y': 'COM9',
-        'camera_index': 0,  # Try camera 0 by default
-        # Camera settings
-        'exposure_time': 10.0,  # Exposure time in milliseconds
-        'gain': 1.0  # Camera gain multiplier
+        'camera_index': 0,                           
+                         
+        'exposure_time': 10.0,                                 
+        'gain': 1.0                          
     }
 
-# Color constants
+                 
 LGRAY = '#232323'
 DGRAY = '#161616'
 RGRAY = '#2c2c2c'
@@ -52,7 +45,6 @@ MGRAY = '#1D1c1c'
 
 
 class StreamToFunction:
-    """Redirect stdout to a function"""
     def __init__(self, func):
         self.func = func
 
@@ -65,35 +57,31 @@ class StreamToFunction:
 
 
 class SpectrometerManager:
-    """Simplified Pixelink camera manager based on samples/getNextNumPyFrame.py"""
-    
     def __init__(self):
         self.hCamera = None
         self.running = False
         self.thread = None
         
-        # Create buffer with reasonable size for PixeLink cameras
-        MAX_WIDTH = 2048   # in pixels - more reasonable for most PixeLink models  
-        MAX_HEIGHT = 2048  # in pixels - sufficient for most applications
+                                                                 
+        MAX_WIDTH = 2048                                                           
+        MAX_HEIGHT = 2048                                                
         self.frame_buffer = np.zeros([MAX_HEIGHT, MAX_WIDTH], dtype=np.uint8)
         
-        # Check USB device availability
+                                       
         self._check_usb_device()
         
     def _check_usb_device(self):
-        """Check if PixeLink USB device is detected and accessible"""
         try:
             import subprocess
             result = subprocess.run(['lsusb'], capture_output=True, text=True)
-            # Silent USB device check - detailed status shown during initialization
+                                                                                   
                 
         except Exception as e:
             print(f"USB device check failed: {e}")
         
     def initialize(self):
-        """Initialize camera exactly like sample"""
         try:
-            # Initialize any camera - exactly like samples
+                                                          
             ret = PxLApi.initialize(0)
             if not PxLApi.apiSuccess(ret[0]):
                 error_code = ret[0]
@@ -108,21 +96,19 @@ class SpectrometerManager:
                 if self.hCamera:
                     PxLApi.loadSettings(self.hCamera, PxLApi.Settings.SETTINGS_FACTORY)
                     time.sleep(0.1)
-                    return self.initialize()  # Recursive retry
+                    return self.initialize()                   
             except:
                 pass
                 
             return False
     
     def start(self):
-        """Start streaming exactly like sample"""
         if self.hCamera and not self.running:
             self.running = True
             self.thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.thread.start()
     
     def stop(self):
-        """Stop streaming exactly like sample"""
         self.running = False
         
         if self.thread:
@@ -139,7 +125,6 @@ class SpectrometerManager:
         self.hCamera = None
 
     def get_next_frame(self, maxTries=5):
-        """Robust wrapper around getNextFrame exactly like sample"""
         ret = (PxLApi.ReturnCode.ApiUnknownError,)
         
         for _ in range(maxTries):
@@ -147,22 +132,21 @@ class SpectrometerManager:
             if PxLApi.apiSuccess(ret[0]):
                 return ret
             else:
-                # If the streaming is turned off, or worse yet -- is gone?
-                if PxLApi.ReturnCode.ApiStreamStopped == ret[0] or \
+                                                                          
+                if PxLApi.ReturnCode.ApiStreamStopped == ret[0] or\
                    PxLApi.ReturnCode.ApiNoCameraAvailableError == ret[0]:
                     return ret
                 else:
                     print(f"    Hmmm... getNextFrame returned {ret[0]}")
         
-        # Ran out of tries
+                          
         return ret
 
     def _capture_loop(self):
-        """Main capture loop - exactly like sample getNextNumPyFrame.py"""
         if not self.hCamera or not self.frame_buffer.size:
             return
             
-        # Start the stream exactly like sample
+                                              
         ret = PxLApi.setStreamState(self.hCamera, PxLApi.StreamState.START)
         if not PxLApi.apiSuccess(ret[0]):
             print(f"setStreamState with StreamState.START failed, rc = {ret[0]}")
@@ -170,34 +154,33 @@ class SpectrometerManager:
 
         while self.running:
             try:
-                # Use robust wrapper exactly like sample
+                                                        
                 ret = self.get_next_frame(1)
                 
                 if PxLApi.apiSuccess(ret[0]):
-                    # ret[1] is frameDescriptor, frame_buffer already contains image data
+                                                                                         
                     frameDescriptor = ret[1]
-                    # Could use frameDescriptor.uFrameNumber, frameDescriptor.fFrameTime etc if needed
+                                                                                                      
 
-                time.sleep(0.5)  # 500ms like sample
+                time.sleep(0.5)                     
                 
             except Exception as e:
                 print(f"PixeLink capture error: {e}")
                 time.sleep(0.1)
         
-        # Stop streaming when loop ends
+                                       
         try:
             ret = PxLApi.setStreamState(self.hCamera, PxLApi.StreamState.STOP)
         except Exception as e:
             print(f"Stop streaming error: {e}")
 
     def set_exposure(self, exposure_ms):
-        """Set camera exposure time in milliseconds"""
         if not self.hCamera:
             print("Camera not initialized - cannot set exposure")
             return False
         
         try:
-            # Convert milliseconds to seconds (PixeLink uses seconds)
+                                                                     
             exposure_seconds = exposure_ms / 1000.0
             params = [exposure_seconds]
             
@@ -213,12 +196,6 @@ class SpectrometerManager:
             return False
 
     def apply_exposure(self, exposure_ms):
-        """Asynchronicznie ustaw ekspozycję (wykorzystywane przez GUI).
-
-        Logika ustawiania ekspozycji na kamerze jest trzymana w
-        SpectrometerManager, a GUI tylko woła tę funkcję z żądaną
-        wartością w ms.
-        """
         if not self.hCamera:
             print("Camera not initialized - cannot apply exposure")
             return
@@ -232,7 +209,6 @@ class SpectrometerManager:
         threading.Thread(target=_worker, daemon=True).start()
     
     def set_gain(self, gain_value):
-        """Set camera gain value"""
         if not self.hCamera:
             print("Camera not initialized - cannot set gain")
             return False
@@ -252,11 +228,6 @@ class SpectrometerManager:
             return False
 
     def apply_gain(self, gain_value):
-        """Asynchronicznie ustaw gain (wykorzystywane przez GUI).
-
-        Cała logika komunikacji z kamerą dla gain jest w jednym
-        miejscu (SpectrometerManager), a GUI tylko przekazuje wartość.
-        """
         if not self.hCamera:
             print("Camera not initialized - cannot apply gain")
             return
@@ -270,14 +241,13 @@ class SpectrometerManager:
         threading.Thread(target=_worker, daemon=True).start()
 
     def get_exposure(self):
-        """Get current camera exposure time"""
         if not self.hCamera:
             return None
         
         try:
             ret = PxLApi.getFeature(self.hCamera, PxLApi.FeatureId.EXPOSURE)
             if PxLApi.apiSuccess(ret[0]):
-                # Convert seconds to milliseconds
+                                                 
                 exposure_ms = ret[2][0] * 1000.0
                 return exposure_ms
             else:
@@ -287,7 +257,6 @@ class SpectrometerManager:
             return None
 
     def get_gain(self):
-        """Get current camera gain"""
         if not self.hCamera:
             return None
         
@@ -303,9 +272,7 @@ class SpectrometerManager:
 
 
 class MotorController:
-    """Controls stepper motors in µm (1 pulse = 2 µm)."""
-
-    MICROMETERS_PER_PULSE = 2.0  # 1 pulse = 2 µm
+    MICROMETERS_PER_PULSE = 2.0                  
 
     def __init__(self, port_x='COM5', port_y='COM9'):
         self.ports = []
@@ -323,27 +290,21 @@ class MotorController:
             print(f"Motor connection error: {e}")
 
     def _check_ports(self, port_x, port_y):
-        """Check if ports are available"""
         available_ports = [p.device for p in serial.tools.list_ports.comports()]
         return port_x in available_ports and port_y in available_ports
 
     def move(self, dx_um: float = 0.0, dy_um: float = 0.0, home: bool = False):
-        """Move both axes asynchronously by distance in µm or go home.
-
-        dx_um, dy_um – przesunięcie w µm w osi X i Y.
-        home=True – wywołuje komendę "home" na obu osiach.
-        """
         if not self.connected:
             return
 
-        # Konwersja: 1 impuls = 2 µm, więc pulses = step/2.
+                                                           
         step_x_pulses = int(abs(dx_um) / 2) if dx_um != 0 else 0
         step_y_pulses = int(abs(dy_um) / 2) if dy_um != 0 else 0
 
         def _move():
             try:
                 if home:
-                    # Proste "home" obu osi
+                                           
                     self.ports[0].write("H:1\r\n".encode())
                     self.ports[1].write("H:1\r\n".encode())
                     return
@@ -367,7 +328,6 @@ class MotorController:
         self.executor.submit(_move)
     
     def close(self):
-        """Close motor connections"""
         try:
             self.executor.shutdown(wait=True)
         except Exception:
@@ -380,10 +340,8 @@ class MotorController:
 
 
 class CustomWindow:
-    """Custom window base class"""
-    
     def __init__(self, *args, **kwargs):
-        self.tk_title = "Arcy puszka"
+        self.tk_title = "Spectrometer"
         self.LGRAY = LGRAY
         self.DGRAY = DGRAY
         self.RGRAY = RGRAY
@@ -391,7 +349,6 @@ class CustomWindow:
         self._setup_window()
     
     def _setup_window(self):
-        """Setup custom window elements"""
         self.title_bar = Frame(self, bg=self.RGRAY, relief='raised', bd=0, 
                               highlightthickness=1, highlightbackground=self.MGRAY)
         
@@ -409,7 +366,7 @@ class CustomWindow:
         self.window = Frame(self, bg=self.DGRAY, highlightthickness=1, 
                            highlightbackground=self.MGRAY)
         
-        # Pack elements
+                       
         self.title_bar.pack(fill=X)
         self.title_bar_title.pack(side=LEFT, padx=10)
         self.close_button.pack(side=RIGHT, ipadx=7, ipady=1)
@@ -417,7 +374,7 @@ class CustomWindow:
         self.window.pack(expand=1, fill=BOTH)
         self.window.pack_propagate(1)
 
-        # Bind events
+                     
         self.title_bar.bind('<Button-1>', self.get_pos)
         self.title_bar_title.bind('<Button-1>', self.get_pos)
         self.close_button.bind('<Enter>', lambda e: self.changex_on_hovering())
@@ -428,7 +385,6 @@ class CustomWindow:
         self.after(10, lambda: self.set_appwindow())
     
     def get_pos(self, event):
-        """Handle window dragging"""
         xwin = self.winfo_x()
         ywin = self.winfo_y()
         startx = event.x_root
@@ -447,9 +403,8 @@ class CustomWindow:
         self.title_bar.bind('<ButtonRelease-1>', release_window)
     
     def set_appwindow(self):
-        """Set window to appear in taskbar"""
         try:
-            # Windows-specific code - skip on Linux
+                                                   
             import sys
             if sys.platform == 'win32':
                 from ctypes import windll
@@ -467,7 +422,6 @@ class CustomWindow:
             pass
     
     def minimize_me(self):
-        """Minimize window"""
         import sys
         if sys.platform == 'win32':
             self.overrideredirect(False)
@@ -480,10 +434,9 @@ class CustomWindow:
                 self.wm_state('iconic')
     
     def deminimize(self):
-        """Restore window"""
         import sys
-        # Przywracanie po minimalizacji: na Windows wracamy do starej
-        # logiki, na Linuksie po prostu deiconify + normalny stan.
+                                                                     
+                                                                  
         if sys.platform == 'win32':
             self.overrideredirect(True)
             self.attributes('-alpha', 1)
@@ -498,29 +451,24 @@ class CustomWindow:
                 self.wm_state('normal')
     
     def changex_on_hovering(self):
-        """Close button hover effect"""
         self.close_button['bg'] = 'red'
     
     def returnx_to_normalstate(self):
-        """Close button normal state"""
         self.close_button['bg'] = self.RGRAY
     
     def close_application(self):
-        """Close application properly"""
         try:
-            # For main window, call on_closing
+                                              
             if hasattr(self, 'on_closing'):
                 self.on_closing()
             else:
-                # For other windows, just destroy
+                                                 
                 self.destroy()
         except:
             import sys
             sys.exit(0)
 
 class CButton(Button):
-    """Custom button with hover effects"""
-    
     def __init__(self, *args, **kwargs):
         Button.__init__(self, *args, **kwargs)
         self.config(
@@ -545,30 +493,26 @@ class CButton(Button):
         self.config(relief='flat')
 
 class CustomTk(Tk, CustomWindow):
-    """Custom main window"""
-    
     def __init__(self, *args, **kwargs):
         Tk.__init__(self, *args, **kwargs)
         CustomWindow.__init__(self, *args, **kwargs)
-        self.tk_title = "Spektrometr"
+        self.tk_title = "Spectrometer"
         
-        # Get screen dimensions first
+                                     
         self.update_idletasks()
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         
-        # Linux-compatible fullscreen setup
+                                           
         self.geometry(f'{screen_width}x{screen_height}+0+0')
-        self.attributes('-fullscreen', True)  # True fullscreen
-        self.overrideredirect(False)  # Keep window manager for better compatibility
+        self.attributes('-fullscreen', True)                   
+        self.overrideredirect(False)                                                
         self.config(bg=self.DGRAY, highlightthickness=0)
                 
-        # Also bind Ctrl+Q for quick quit
+                                         
         self.bind('<Control-q>', lambda e: self.on_closing())
 
 class CustomToplevel(Toplevel, CustomWindow):
-    """Custom dialog window z własnym oknem potwierdzenia (confirm)."""
-    
     def __init__(self, *args, **kwargs):
         Toplevel.__init__(self, *args, **kwargs)
         CustomWindow.__init__(self, *args, **kwargs)
@@ -581,7 +525,6 @@ class CustomToplevel(Toplevel, CustomWindow):
         result = {'value': False}
 
         def _build_dialog(dlg: "CustomToplevel", done_callback=None):
-            """Wspólne budowanie zawartości dialogu."""
             sw = dlg.winfo_screenwidth()
             sh = dlg.winfo_screenheight()
             ww, wh = 420, 160
@@ -607,12 +550,12 @@ class CustomToplevel(Toplevel, CustomWindow):
                 if done_callback is not None:
                     done_callback()
 
-            CButton(btns, text="Tak", width=10,
-                    command=lambda: _set(True)).pack(side=LEFT, padx=10)
-            CButton(btns, text="Nie", width=10,
-                    command=lambda: _set(False)).pack(side=LEFT, padx=10)
+            CButton(btns, text="Yes", width=10,
+                        command=lambda: _set(True)).pack(side=LEFT, padx=10)
+            CButton(btns, text="No", width=10,
+                        command=lambda: _set(False)).pack(side=LEFT, padx=10)
 
-        # Główny wątek: klasyczne modalne okno z wait_window
+                                                            
         if threading.current_thread() is threading.main_thread():
             try:
                 dlg = CustomToplevel(parent)
@@ -625,13 +568,13 @@ class CustomToplevel(Toplevel, CustomWindow):
                 try:
                     parent.wait_window(dlg)
                 except Exception:
-                    # Jeśli coś pójdzie nie tak, traktuj jak anulowanie
+                                                                       
                     return False
                 return bool(result['value'])
             except Exception:
                 return False
 
-        # Wątek roboczy: użyj after + Event, aby nie blokować pętli Tk
+                                                                         
         event = threading.Event()
 
         def _show_dialog_from_worker():
@@ -656,12 +599,7 @@ class CustomToplevel(Toplevel, CustomWindow):
 
     @staticmethod
     def alert(parent, message: str, title: str = "Info") -> None:
-        """Proste okno powiadomienia z przyciskiem OK (customowe).
-
-        Analogicznie do confirm:
-        - w głównym wątku używa wait_window,
-        - w wątku roboczym używa after + Event.
-        """
+        
 
         def _build_dialog(dlg: "CustomToplevel", done_callback=None):
             sw = dlg.winfo_screenwidth()
@@ -690,7 +628,7 @@ class CustomToplevel(Toplevel, CustomWindow):
 
             CButton(btns, text="OK", width=10, command=_close).pack(side=LEFT, padx=10)
 
-        # Główny wątek: synchroniczny alert z wait_window
+                                                         
         if threading.current_thread() is threading.main_thread():
             try:
                 dlg = CustomToplevel(parent)
@@ -708,7 +646,7 @@ class CustomToplevel(Toplevel, CustomWindow):
             except Exception:
                 return
 
-        # Wątek roboczy: after + Event
+                                      
         event = threading.Event()
 
         def _show_dialog_from_worker():
@@ -731,21 +669,15 @@ class CustomToplevel(Toplevel, CustomWindow):
 
 
 class HeatMapWindow(CustomToplevel):
-    """Viewer wyników: prosty slider długości fali + mapa 2D + widmo.
-
-    Klasa sama przechowuje nazwę pliku z pomiarem i sama go
-    wczytuje przy otwarciu.
-    """
-
     def __init__(self, parent, filename):
         CustomToplevel.__init__(self, parent)
 
-        # Zapamiętaj pełną ścieżkę i nazwę pliku pomiaru
+                                                  
         self.filename = filename
         self.basename = os.path.basename(filename)
         self.title(f"Measurement: {self.basename}")
 
-        # Rozmiar okna ~80% ekranu, wyśrodkowany
+                                                  
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         window_width = int(screen_width * 0.8)
@@ -754,7 +686,7 @@ class HeatMapWindow(CustomToplevel):
         y = (screen_height - window_height) // 2
         self.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
-        # Wczytaj dane z pliku CSV: x, y, spectrum... (na podstawie self.filename)
+                                                                             
         data = []
         try:
             with open(self.filename, 'r') as f:
@@ -778,12 +710,12 @@ class HeatMapWindow(CustomToplevel):
                   bg=self.DGRAY, fg='lightgray').pack(padx=10, pady=10)
             return
 
-        # Prosta siatka X/Y
+                         
         xs = sorted({row[0] for row in data})
         ys = sorted({row[1] for row in data})
         nx, ny = len(xs), len(ys)
 
-        # Zbuduj pełną kostkę widmową: (ny, nx, L)
+                                               
         min_len = min(len(row[2]) for row in data)
         self.cube = np.zeros((ny, nx, min_len), dtype=float)
 
@@ -797,10 +729,10 @@ class HeatMapWindow(CustomToplevel):
             spec_arr = np.array(spec[:min_len], dtype=float)
             self.cube[y_idx, x_idx, :] = spec_arr
 
-        # Uśrednione widmo po całym obszarze
+                                                
         self.mean_spec = np.mean(self.cube, axis=(0, 1))
 
-        # Oś długości fali: liniowe odwzorowanie indeksów -> λ
+                                                         
         try:
             wl_min = float(options.get('wavelength_min', 0.0))
             wl_max = float(options.get('wavelength_max', float(min_len - 1)))
@@ -811,7 +743,7 @@ class HeatMapWindow(CustomToplevel):
         self.current_idx = 0
         self.current_wavelength = float(self.x_axis[0]) if len(self.x_axis) > 0 else 0.0
 
-        # Górny panel: opis + slider po długości fali
+                                              
         control_frame = Frame(self.window, bg=self.DGRAY)
         control_frame.pack(fill=X, padx=10, pady=5)
 
@@ -836,7 +768,7 @@ class HeatMapWindow(CustomToplevel):
         )
         self.slider.pack(side=LEFT, fill=X, expand=True)
 
-        # Layout: u góry 2D mapa, na dole widmo (stały GridSpec)
+                                                                        
         self.fig = plt.figure(figsize=(10, 7), facecolor=self.DGRAY)
         gs = GridSpec(2, 1, height_ratios=[2, 1])
         self.ax2d = self.fig.add_subplot(gs[0, 0])
@@ -844,12 +776,12 @@ class HeatMapWindow(CustomToplevel):
         self.colorbar = None
         
         try:
-            # Większy odstęp między górnym a dolnym wykresem
+                                                         
             self.fig.subplots_adjust(top=0.93, bottom=0.12, left=0.08, right=0.98, hspace=0.6)
         except Exception:
             pass
 
-        # Inicjalne rysowanie
+                             
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.window)
         self.canvas.get_tk_widget().pack(fill=BOTH, expand=True, padx=5, pady=5)
 
@@ -864,7 +796,6 @@ class HeatMapWindow(CustomToplevel):
             pass
 
     def _on_slider(self, value):
-        """Zmiana indeksu długości fali (piksela)."""
         try:
             idx = int(float(value))
             idx = max(0, min(idx, self.cube.shape[2] - 1))
@@ -879,33 +810,32 @@ class HeatMapWindow(CustomToplevel):
             pass
 
     def _update_plots(self):
-        """Aktualizacja mapy 2D dla aktualnego indeksu i średniego widma."""
         try:
             self.ax2d.clear()
             self.ax_spec.clear()
 
-            # Mapa 2D dla wybranego indeksu
+                                       
             slice_2d = self.cube[:, :, self.current_idx]
             ny, nx = slice_2d.shape
             im = self.ax2d.imshow(
                 slice_2d,
                 origin='lower',
                 cmap='hot',
-                # Równe proporcje pikseli – mapa nie zmienia kształtu
+                                                                     
                 aspect='equal'
             )
-            # Ustal stałe granice osi, żeby rozmiar mapy był stabilny
+                                                      
             try:
                 self.ax2d.set_xlim(-0.5, nx - 0.5)
                 self.ax2d.set_ylim(-0.5, ny - 0.5)
             except Exception:
                 pass
-            # Wycentruj mapę w osi przy equal aspect
+                                                          
             try:
                 self.ax2d.set_anchor('C')
             except Exception:
                 pass
-            # Czytelniejsze opisy i osie dla mapy 2D (wavelength zamiast pixeli)
+                                                                               
             wl_val = getattr(self, 'current_wavelength', float(self.current_idx))
             self.ax2d.set_title(
                 f"Intensity map @ λ = {wl_val:.1f}",
@@ -918,7 +848,7 @@ class HeatMapWindow(CustomToplevel):
             for spine in self.ax2d.spines.values():
                 spine.set_color('white')
 
-            # Jedna stała colorbar – tylko aktualizujemy mapę, żeby oś nie zmieniała rozmiaru
+                                                                                         
             if self.colorbar is None:
                 self.colorbar = self.fig.colorbar(im, ax=self.ax2d, fraction=0.046, pad=0.04)
                 self.colorbar.ax.tick_params(colors='white', labelsize=10)
@@ -932,14 +862,14 @@ class HeatMapWindow(CustomToplevel):
                 except Exception:
                     pass
 
-            # Średnie widmo + pionowa linia aktualnej długości fali
+                                                                    
             self.ax_spec.plot(self.x_axis, self.mean_spec, color='orange')
             try:
                 wl_val = getattr(self, 'current_wavelength', float(self.current_idx))
                 self.ax_spec.axvline(wl_val, color='red', linestyle='--', linewidth=1.5)
             except Exception:
                 self.ax_spec.axvline(self.current_idx, color='red', linestyle='--', linewidth=1.5)
-            # Czytelniejsze opisy i osie dla widma
+                                                  
             self.ax_spec.set_title("Average spectrum vs. wavelength", color='white', fontsize=16, fontweight='bold')
             self.ax_spec.set_xlabel("Wavelength (λ)", color='white', fontsize=14, fontweight='bold')
             self.ax_spec.set_ylabel("Intensity", color='white', fontsize=14, fontweight='bold')
@@ -955,18 +885,16 @@ class HeatMapWindow(CustomToplevel):
 
 
 class SpektrometerApp(CustomTk):
-    """Main application class"""
-    
     def __init__(self):
         super().__init__()
-        self.title("Spektrometr")
+        self.title("Spectrometer")
 
-        # Set to maximum screen size
+                                    
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         self.geometry(f'{screen_width}x{screen_height}+0+0')
         
-        # Konfiguracja aplikacji i sprzetu
+                                                
         self.spectrometer_manager = SpectrometerManager()
         self.motor_controller = MotorController(
             options.get('port_x', 'COM10'),
@@ -976,14 +904,14 @@ class SpektrometerApp(CustomTk):
         self.motors_ready = False
         self.pixelink_ready = False
         
-        # Variables
-        self.measurement_files = []  # Store filenames only, not data
+                   
+        self.measurement_files = []                                  
         self.current_image = None
         self.spectrum_data = np.zeros(2048)
         
-        self.pixelink_image_data = None  # Store current PixeLink frame
+        self.pixelink_image_data = None                                
         
-        # Sequence control flags
+                                
         self._sequence_running = False
         self._sequence_stop_requested = False
         self._shutting_down = False
@@ -991,29 +919,29 @@ class SpektrometerApp(CustomTk):
         self._create_widgets()
         self._setup_styles()
         
-        # NOW redirect stdout after console is created
+                                                      
         sys.stdout = StreamToFunction(self.console_output)
-        # Ensure cleanup runs on window close to avoid PhotoImage/Tcl teardown races
+                                                                                    
         try:
             self.protocol("WM_DELETE_WINDOW", self.on_closing)
         except Exception:
             pass
         
-        # Initialize systems and start update loop
+                                                  
         self.after(100, self._delayed_init)
         
-        # Keep track of after() calls to cancel them during cleanup
+                                                                   
         self._after_ids = []
 
     def _create_widgets(self):
-        """Create main GUI widgets"""
-        # Notebook for tabs
+        
+                           
         self.notebook = ttk.Notebook(self.window)
         self.notebook.pack(fill=BOTH, expand=True, padx=2, pady=2)
         
-        # Create tabs - COMBINED TABS
-        self.tab_camera_controls = Frame(self.notebook, bg=self.DGRAY)  # Camera + Controls
-        self.tab_spectrum_pixelink = Frame(self.notebook, bg=self.DGRAY)  # Spectrum + Pixelink
+                                     
+        self.tab_camera_controls = Frame(self.notebook, bg=self.DGRAY)                     
+        self.tab_spectrum_pixelink = Frame(self.notebook, bg=self.DGRAY)                       
         self.tab_results = Frame(self.notebook, bg=self.DGRAY)
         self.tab_settings = Frame(self.notebook, bg=self.DGRAY)
         
@@ -1022,76 +950,76 @@ class SpektrometerApp(CustomTk):
         self.notebook.add(self.tab_results, text="Results")
         self.notebook.add(self.tab_settings, text="Settings")
         
-        # Setup individual tabs
+                               
         self._setup_camera_controls_tab()
         self._setup_spectrum_pixelink_tab()
         self._setup_results_tab()
         self._setup_settings_tab()
 
     def _setup_camera_controls_tab(self):
-        """Setup simplified camera tab with centered view and calibrate button only"""
-        # Create main container 
+        
+                                
         main_container = Frame(self.tab_camera_controls, bg=self.DGRAY)
         main_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
         
-        # Camera title
+                      
         Label(main_container, text="Camera", font=("Arial", 16, "bold"), 
               bg=self.DGRAY, fg='white').pack(pady=(0, 10))
         
-        # Centered camera display (Canvas with drag select) - moderate size
+                                                                           
         camera_container = Frame(main_container, bg=self.DGRAY)
         camera_container.pack(expand=False, fill=X)
         
         self.camera_canvas = Canvas(camera_container, bg=self.DGRAY, highlightthickness=0)
         self.camera_canvas.pack()
-        self._camera_canvas_img = None  # Initialize as None instead of reading from camera
-        # Use 3/5 of screen dimensions for camera canvas
+        self._camera_canvas_img = None                                                     
+                                                        
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
-        self._camera_frame_size = (int(screen_width * 3/5), int(screen_height * 3/5))  # 0.4 to leave space for controls
+        self._camera_frame_size = (int(screen_width * 3/5), int(screen_height * 3/5))                                   
         self.camera_canvas.config(width=self._camera_frame_size[0], height=self._camera_frame_size[1])
         
-        # Status under canvas
+                             
         self.cam_status = Label(main_container, bg=self.DGRAY, fg='lightgray', 
                                text="Camera Status: Not Started", font=("Arial", 10))
         self.cam_status.pack(pady=5)
         
-        # Control buttons frame - centered
+                                          
         control_frame = Frame(main_container, bg=self.DGRAY)
         control_frame.pack(pady=10)
         
-        # Essential controls only
+                                 
         CButton(control_frame, text="Start Camera", command=lambda: self.start_camera()).pack(side=LEFT, padx=5)
         CButton(control_frame, text="Stop Camera", command=lambda: self.stop_camera()).pack(side=LEFT, padx=5)
         
-        # Add Start Sequence button (needed for state management)
+                                                                 
         self.start_seq_btn = CButton(control_frame, text="Start Sequence", command=self.start_measurement_sequence)
         self.start_seq_btn.pack(side=LEFT, padx=5)
         
-        # Add Stop Sequence button
+                                  
         self.stop_seq_btn = CButton(control_frame, text="Stop Sequence", command=self.stop_measurement_sequence)
         self.stop_seq_btn.pack(side=LEFT, padx=5)
-        self.stop_seq_btn.config(state=DISABLED)  # Initially disabled
+        self.stop_seq_btn.config(state=DISABLED)                      
         
-        # Initial state based on calibration
+                                            
         self._update_start_seq_state()
         
-        # Motor control section - na dole, przylegające do krawędzi
+                                                                   
         motor_frame = LabelFrame(main_container, text="Manual Motor Control", bg=self.DGRAY, fg='white')
-        motor_frame.pack(fill=BOTH, expand=True, pady=10, side=BOTTOM)  # Dodano side=BOTTOM
+        motor_frame.pack(fill=BOTH, expand=True, pady=10, side=BOTTOM)                      
         
-        # Horizontal layout: Console on left, buttons on right
+                                                              
         horizontal_frame = Frame(motor_frame, bg=self.DGRAY)
         horizontal_frame.pack(fill=BOTH, expand=True, padx=10, pady=10)
         
-        # Left side - Console (larger)
+                                      
         console_frame = LabelFrame(horizontal_frame, text="Status Console", bg=self.DGRAY, fg='white')
         console_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 10))
         
         self.console = Text(console_frame, bg=self.DGRAY, fg='lightgreen', height=10, wrap=WORD)
         console_scrollbar = Scrollbar(console_frame, orient=VERTICAL, command=self.console.yview)
         self.console.configure(yscrollcommand=console_scrollbar.set)
-        # Color tags for log levels
+                                   
         self.console.tag_configure("error", foreground="red")
         self.console.tag_configure("warning", foreground="yellow")
         self.console.tag_configure("normal", foreground="lightgreen")
@@ -1099,11 +1027,11 @@ class SpektrometerApp(CustomTk):
         self.console.pack(side=LEFT, fill=BOTH, expand=True)
         console_scrollbar.pack(side=RIGHT, fill=Y)
         
-        # Right side - Motor controls (smaller)
+                                               
         motor_controls_frame = Frame(horizontal_frame, bg=self.DGRAY)
         motor_controls_frame.pack(side=RIGHT, fill=Y, padx=(10, 0))
         
-        # Step size controls
+                            
         Label(motor_controls_frame, text="Step Size:", bg=self.DGRAY, fg='white', font=("Arial", 10)).pack(pady=(0, 5))
         step_control_frame = Frame(motor_controls_frame, bg=self.DGRAY)
         step_control_frame.pack(pady=(0, 10))
@@ -1111,24 +1039,24 @@ class SpektrometerApp(CustomTk):
         self.motor_step_var = IntVar(value=1)
         step_sizes = [1, 5, 10, 25, 50]
         for i, step in enumerate(step_sizes):
-            if i < 3:  # First row
+            if i < 3:             
                 row, col = 0, i
-            else:  # Second row
+            else:              
                 row, col = 1, i-3
             Radiobutton(step_control_frame, text=str(step), variable=self.motor_step_var, value=step,
                        bg=self.DGRAY, fg='white', selectcolor=self.RGRAY, font=("Arial", 9),
                        activebackground=self.RGRAY).grid(row=row, column=col, padx=1, pady=1)
         
-        # Directional buttons in cross pattern (smaller)
+                                                        
         Label(motor_controls_frame, text="Movement:", bg=self.DGRAY, fg='white', font=("Arial", 10)).pack(pady=(10, 5))
         direction_frame = Frame(motor_controls_frame, bg=self.DGRAY)
         direction_frame.pack()
         
-        # Row 1: Up button
+                          
         Button(direction_frame, text="↑", command=lambda: self.move_motor('u'), 
                width=4, bg=RGRAY, fg='white', font=("Arial", 10)).grid(row=0, column=1, padx=2, pady=2)
         
-        # Row 2: Left, Origin, Right buttons  
+                                              
         Button(direction_frame, text="←", command=lambda: self.move_motor('l'), 
                width=4, bg=RGRAY, fg='white', font=("Arial", 10)).grid(row=1, column=0, padx=2, pady=2)
         Button(direction_frame, text="⌂", command=lambda: self.move_motor('o'), 
@@ -1136,23 +1064,23 @@ class SpektrometerApp(CustomTk):
         Button(direction_frame, text="→", command=lambda: self.move_motor('r'), 
                width=4, bg=RGRAY, fg='white', font=("Arial", 10)).grid(row=1, column=2, padx=2, pady=2)
         
-        # Row 3: Down button
+                            
         Button(direction_frame, text="↓", command=lambda: self.move_motor('d'), 
                width=4, bg=RGRAY, fg='white', font=("Arial", 10)).grid(row=2, column=1, padx=2, pady=2)
         
-        # Motor status
+                      
         self.motor_status = Label(motor_controls_frame, bg=self.DGRAY, fg='lightgray', 
                                  text="Motor Status: Checking...", font=("Arial", 9), wraplength=150)
         self.motor_status.pack(pady=(10, 0))
 
     def move_motor(self, direction: str):
-        """Obsługa przycisków strzałek: ruch w µm lub home."""
+        
         try:
             if not self.motor_controller or not self.motor_controller.connected:
                 print("Motor controller not connected")
                 return
 
-            # Mnożnik z przycisków (1,5,10,25,50)
+                                                        
             step_mult = self.motor_step_var.get() if hasattr(self, 'motor_step_var') else 1
 
             base_step_x = self.step_x.get() if hasattr(self, 'step_x') else options.get('step_x', 20)
@@ -1182,26 +1110,26 @@ class SpektrometerApp(CustomTk):
             print(f"Manual motor move error: {e}")
 
     def _setup_spectrum_pixelink_tab(self):
-        """Setup spectrum tab with image preview and spectrum plot"""
-        # Create main container
+        
+                               
         main_container = Frame(self.tab_spectrum_pixelink, bg=self.DGRAY)
         main_container.pack(fill=BOTH, expand=True, padx=5, pady=5)
         
-        # Top section - Image Preview (fixed size to leave room for controls)
+                                                                             
         image_frame = Frame(main_container, bg=self.DGRAY)
         image_frame.pack(fill=BOTH, pady=(0, 10))
         image_frame.pack_propagate(False)
         image_frame.configure(height=self.winfo_screenheight()*3//5)
-        # Calculate 3/5 of screen height minus space for larger spectrum (350px) and controls # Minimum 400px
+                                                                                                             
         
-        # Image title and status
+                                
         image_header = Frame(image_frame, bg=self.DGRAY)
         image_header.pack(fill=X, pady=(0, 5))
         
         Label(image_header, text="PixeLink Camera", font=("Arial", 14, "bold"), 
               bg=self.DGRAY, fg='white').pack(side=LEFT)
         
-        # Default Pixelink status: assume offline until initialization succeeds
+                                                                               
         self.pixelink_status = Label(
             image_header,
             text="Offline",
@@ -1209,7 +1137,7 @@ class SpektrometerApp(CustomTk):
         )
         self.pixelink_status.pack(side=RIGHT)
         
-        # Canvas for image display - controlled size
+                                                    
         canvas_container = Frame(image_frame, bg=self.DGRAY)
         canvas_container.pack(fill=BOTH, pady=5)
         
@@ -1220,16 +1148,16 @@ class SpektrometerApp(CustomTk):
         )
         self.spectrum_image_canvas.pack()
         
-        # Use 3/5 of screen width and adapt height to available space
+                                                                     
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
         canvas_width = int(screen_width * 3/5)
-        canvas_height = int(screen_height * 3/5)  # Reserve space for larger spectrum (350px) and controls
+        canvas_height = int(screen_height * 3/5)                                                          
         self._spectrum_image_size = (canvas_width,canvas_height)
         self.spectrum_image_canvas.config(width=self._spectrum_image_size[0], height=self._spectrum_image_size[1])
-        self.spectrum_image_canvas_image = None  # Reference for image
+        self.spectrum_image_canvas_image = None                       
         
-        # Centered placeholder text
+                                   
         self.spectrum_image_canvas.create_text(
             self._spectrum_image_size[0]//2,
             self._spectrum_image_size[1]//2,
@@ -1239,15 +1167,15 @@ class SpektrometerApp(CustomTk):
             tags="placeholder"
         )
         
-        # Camera Controls section (Compact between image and spectrum)
+                                                                      
         controls_frame = Frame(main_container, bg=self.DGRAY)
         controls_frame.pack(fill=X, pady=(5, 5))
         
-        # Title for controls
+                            
         Label(controls_frame, text="Camera Controls", font=("Arial", 11, "bold"), 
-              bg=self.DGRAY, fg='white').pack(pady=(0, 5))  # Reduced font and padding
+              bg=self.DGRAY, fg='white').pack(pady=(0, 5))                            
         
-        # Add PixeLink reconnect button
+                                       
         reconnect_frame = Frame(controls_frame, bg=self.DGRAY)
         reconnect_frame.pack(fill=X, pady=(0, 5))
         
@@ -1258,21 +1186,21 @@ class SpektrometerApp(CustomTk):
                                               bg=self.DGRAY, fg='lightgray', font=("Arial", 9))
         self.pixelink_reconnect_status.pack(side=LEFT)
         
-        # Controls container with two columns
+                                             
         controls_container = Frame(controls_frame, bg=self.DGRAY)
-        controls_container.pack(fill=X, padx=15)  # Reduced padding
+        controls_container.pack(fill=X, padx=15)                   
         
-        # Exposure control
+                          
         exposure_frame = Frame(controls_container, bg=self.DGRAY)
-        exposure_frame.pack(side=LEFT, fill=X, expand=True, padx=(0, 10))  # Reduced padding
+        exposure_frame.pack(side=LEFT, fill=X, expand=True, padx=(0, 10))                   
         
         Label(exposure_frame, text="Exposure Time (ms)", 
-              bg=self.DGRAY, fg='white', font=("Arial", 9)).pack(anchor=W)  # Smaller font
+              bg=self.DGRAY, fg='white', font=("Arial", 9)).pack(anchor=W)                
         
-        # Logiczna wartość ekspozycji (ms) – używana w sekwencji i zapisach
+                                                                   
         self.exposure_var = DoubleVar(value=options.get('exposure_time', 10.0))
-        # Suwak pracuje w zakresie 0-1 (ułamek), przeliczany ręcznie na ms
-        # Zainicjalizujemy go później z faktycznej wartości ekspozycji
+                                                                               
+                                                                     
         self._exposure_slider_var = DoubleVar(value=0.0)
         self.exposure_scale = Scale(
             exposure_frame,
@@ -1287,26 +1215,25 @@ class SpektrometerApp(CustomTk):
             troughcolor='gray',
             command=self._on_exposure_change
         )
-        # Ensure slider is interactive (some Linux themes may interfere)
+                                                                        
         try:
             self.exposure_scale.configure(state=NORMAL, takefocus=1, sliderlength=20)
         except Exception:
             pass
-        self.exposure_scale.pack(fill=X, pady=(2, 0))  # Reduced padding
+        self.exposure_scale.pack(fill=X, pady=(2, 0))                   
 
-        # Fallback controls: +/- buttons for exposure (in case dragging is problematic)
+                                                                                       
         exp_btn_frame = Frame(exposure_frame, bg=self.DGRAY)
         exp_btn_frame.pack(fill=X, pady=(2, 0))
 
         def _exp_step(delta):
-            """Step exposure in ms i przestaw też suwak 0-1."""
             try:
                 min_ms, max_ms = 0.1, 1000.0
                 cur_ms = float(self.exposure_var.get())
                 new_ms = min(max_ms, max(min_ms, cur_ms + delta))
                 self.exposure_var.set(new_ms)
 
-                # Oblicz odpowiadającą pozycję suwaka (0-1) i ustaw Scale
+                                                                         
                 frac = (new_ms - min_ms) / (max_ms - min_ms)
                 frac = max(0.0, min(1.0, frac))
                 if hasattr(self, 'exposure_scale'):
@@ -1314,7 +1241,7 @@ class SpektrometerApp(CustomTk):
                 if hasattr(self, '_exposure_slider_var'):
                     self._exposure_slider_var.set(frac)
 
-                # Wywołaj tę samą logikę co przy ruchu suwaka
+                                                             
                 self._apply_exposure_ms(new_ms)
             except Exception:
                 pass
@@ -1322,25 +1249,25 @@ class SpektrometerApp(CustomTk):
         CButton(exp_btn_frame, text="-", command=lambda: _exp_step(-1.0), width=2).pack(side=LEFT, padx=(0, 4))
         CButton(exp_btn_frame, text="+", command=lambda: _exp_step(1.0), width=2).pack(side=LEFT)
         
-        # Exposure value label
+                              
         self.exposure_value_label = Label(
             exposure_frame, 
             text=f"{self.exposure_var.get():.1f} ms",
-            bg=self.DGRAY, fg='lightgray', font=("Arial", 8)  # Smaller font
+            bg=self.DGRAY, fg='lightgray', font=("Arial", 8)                
         )
         self.exposure_value_label.pack(anchor=W)
         
-        # Gain control
+                      
         gain_frame = Frame(controls_container, bg=self.DGRAY)
-        gain_frame.pack(side=LEFT, fill=X, expand=True, padx=(10, 0))  # Reduced padding
+        gain_frame.pack(side=LEFT, fill=X, expand=True, padx=(10, 0))                   
         
         Label(gain_frame, text="Gain", 
-              bg=self.DGRAY, fg='white', font=("Arial", 9)).pack(anchor=W)  # Smaller font
+              bg=self.DGRAY, fg='white', font=("Arial", 9)).pack(anchor=W)                
         
-        # Logiczny gain (1-10)
+                             
         self.gain_var = DoubleVar(value=options.get('gain', 1.0))
-        # Suwak w zakresie 0-1, przeliczany ręcznie na 1-10
-        # Zainicjalizujemy go później z faktycznej wartości gain
+                                                             
+                                                                 
         self._gain_slider_var = DoubleVar(value=0.0)
         self.gain_scale = Scale(
             gain_frame,
@@ -1359,14 +1286,13 @@ class SpektrometerApp(CustomTk):
             self.gain_scale.configure(state=NORMAL, takefocus=1, sliderlength=20)
         except Exception:
             pass
-        self.gain_scale.pack(fill=X, pady=(2, 0))  # Reduced padding
+        self.gain_scale.pack(fill=X, pady=(2, 0))                   
 
-        # Fallback controls: +/- buttons for gain
+                                                 
         gain_btn_frame = Frame(gain_frame, bg=self.DGRAY)
         gain_btn_frame.pack(fill=X, pady=(2, 0))
 
         def _gain_step(delta):
-            """Step gain 1-10 i przestaw też suwak 0-1."""
             try:
                 min_gain, max_gain = 1.0, 10.0
                 cur = float(self.gain_var.get())
@@ -1387,15 +1313,15 @@ class SpektrometerApp(CustomTk):
         CButton(gain_btn_frame, text="-", command=lambda: _gain_step(-0.1), width=2).pack(side=LEFT, padx=(0, 4))
         CButton(gain_btn_frame, text="+", command=lambda: _gain_step(0.1), width=2).pack(side=LEFT)
         
-        # Gain value label
+                          
         self.gain_value_label = Label(
                 gain_frame, 
                 text=f"{self.gain_var.get():.1f}",
-                bg=self.DGRAY, fg='lightgray', font=("Arial", 8)  # Smaller font
+                bg=self.DGRAY, fg='lightgray', font=("Arial", 8)                
         )
         self.gain_value_label.pack(anchor=W)
 
-        # Zsynchronizuj pozycje suwaków z aktualnymi wartościami z opcji
+                                                                       
         try:
             self._apply_exposure_ms(float(self.exposure_var.get()))
         except Exception:
@@ -1405,10 +1331,10 @@ class SpektrometerApp(CustomTk):
         except Exception:
             pass
 
-        # ---- Spectrum ROI + Auto spectrum (moved from Settings tab) ----
+                                                                          
         spectrum_ctrl_frame = Frame(controls_frame, bg=self.DGRAY)
         spectrum_ctrl_frame.pack(fill=X, padx=15, pady=(5, 0))
-        # Ustal bazowy zakres osi (długość fali 0-2048 w umownych jednostkach)
+                                                                    
         base_min = 0.0
         base_max = 2048.0
         units_label = "λ"
@@ -1426,7 +1352,7 @@ class SpektrometerApp(CustomTk):
             bg=self.RGRAY,
             fg='white',
             width=8,
-            insertbackground='white',  # widoczny kursor
+            insertbackground='white',                   
             relief='flat',
             highlightthickness=1,
             highlightbackground=self.RGRAY,
@@ -1451,7 +1377,7 @@ class SpektrometerApp(CustomTk):
         Label(spectrum_ctrl_frame, text=units_label,
             bg=self.DGRAY, fg='lightgray', font=("Arial", 8)).grid(row=0, column=5, sticky=W, padx=(5, 0))
 
-        # ROI control buttons
+                             
         self.spectrum_reset_btn = CButton(
             spectrum_ctrl_frame,
             text="RESET RANGE",
@@ -1470,19 +1396,19 @@ class SpektrometerApp(CustomTk):
         )
         self.spectrum_apply_btn.grid(row=1, column=3, columnspan=3, sticky=E, padx=(10, 0), pady=2)
     
-        # Bottom section - Spectrum Plot (larger, reaching bottom)
+                                                                  
         spectrum_frame = Frame(main_container, bg=self.DGRAY)
-        spectrum_frame.pack(fill=BOTH, expand=True, pady=(5, 0))  # Changed to expand=True to reach bottom
+        spectrum_frame.pack(fill=BOTH, expand=True, pady=(5, 0))                                          
         spectrum_frame.pack_propagate(False)
-        spectrum_frame.configure(height=350)  # Increased from 200 to 350 pixels
+        spectrum_frame.configure(height=350)                                    
         
-        # Create larger spectrum plot - more visible
-        self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(18, 4.5), facecolor=self.DGRAY)  # Increased from (15, 2.5)
+                                                    
+        self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(18, 4.5), facecolor=self.DGRAY)                            
         self.spectrum_ax.set_facecolor(self.DGRAY)
         
-        # Initialize spectrum data and axes
-        self._update_spectrum_axes()  # Dynamic axis setup
-        # Dopasuj długość danych do aktualnej osi (może być < 2048 po ROI)
+                                           
+        self._update_spectrum_axes()                      
+                                                                     
         try:
             axis_len = len(self.x_axis)
         except Exception:
@@ -1490,14 +1416,14 @@ class SpektrometerApp(CustomTk):
         self.spectrum_data = np.zeros(axis_len)
         self.spectrum_line, = self.spectrum_ax.plot(self.x_axis, self.spectrum_data, color='green', linewidth=1)
         
-        # Style - larger fonts for better readability (wavelength on X)
+                                                                       
         self.spectrum_ax.set_xlabel("Wavelength (λ)", color='white', fontsize=14)
         self.spectrum_ax.set_ylabel("Intensity", color='white', fontsize=14)
         self.spectrum_ax.set_title("Spectrum vs. wavelength", color='white', fontsize=16)
         self.spectrum_ax.tick_params(colors='white', labelsize=12)
         self.spectrum_ax.grid(True, alpha=0.3, color='gray')
 
-        # Marginesy tak, aby tytuły i opisy nie były przycięte
+                                                           
         try:
             self.spectrum_fig.tight_layout(rect=[0.03, 0.08, 0.98, 0.97])
         except Exception:
@@ -1506,15 +1432,14 @@ class SpektrometerApp(CustomTk):
             except Exception:
                 pass
         
-        # Canvas
+                
         self.spectrum_canvas = FigureCanvasTkAgg(self.spectrum_fig, master=spectrum_frame)
         self.spectrum_canvas.draw()
         self.spectrum_canvas.get_tk_widget().pack(fill=BOTH, expand=True)
         
-        # Start unified update thread for both camera and spectrometer
+                                                                      
         def update_image():
             def update_camera_display(frame):
-                """Update camera display - inline function"""
                 try:
                     if frame is None or frame.size == 0:
                         return
@@ -1526,23 +1451,23 @@ class SpektrometerApp(CustomTk):
                         frame_resized = cv2.resize(frame, (new_w, new_h))
                         frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
                         
-                        # Create PIL image and PhotoImage (attach to canvas as master)
+                                                                                      
                         pil_image = Image.fromarray(frame_rgb)
-                        # Attach PhotoImage to the main app (`self`) so the Tcl interpreter
-                        # still owns the image even if canvases are destroyed during shutdown.
+                                                                                           
+                                                                                              
                         photo = ImageTk.PhotoImage(pil_image, master=self)
                         
-                        # Update camera canvas
+                                              
                         if hasattr(self, 'camera_canvas'):
                             self.camera_canvas.delete("all")
                             x_offset = (canvas_w - new_w) // 2
                             y_offset = (canvas_h - new_h) // 2
                             self.camera_canvas.create_image(x_offset, y_offset, anchor='nw', image=photo)
-                            self.camera_canvas.image = photo  # Keep reference
-                            # Also keep a reference on the app object to ensure long-lived ownership
+                            self.camera_canvas.image = photo                  
+                                                                                                    
                             self._camera_canvas_img = photo
                             
-                        # Update status
+                                       
                         if hasattr(self, 'cam_status'):
                             self.cam_status.config(text="Camera: Live feed active", fg='lightgreen')
                     
@@ -1553,21 +1478,21 @@ class SpektrometerApp(CustomTk):
                 try:
                     if frame is None or frame.size == 0:
                         return
-                    # Skaluj obraz tak, aby CAŁY mieścił się w canvasie (letterbox/pillarbox),
-                    # z zachowaniem proporcji, bez obcinania.
+                                                                                              
+                                                             
 
-                    # Rozmiar klatki z kamery
+                                             
                     h, w = frame.shape[:2]
                     if h <= 0 or w <= 0:
                         return
 
-                    # Aktualny rozmiar canvasa (fallback do zapamiętanego)
+                                                                          
                     canvas_w = self.spectrum_image_canvas.winfo_width()
                     canvas_h = self.spectrum_image_canvas.winfo_height()
                     if canvas_w <= 1 or canvas_h <= 1:
                         canvas_w, canvas_h = self._spectrum_image_size
 
-                    # Współczynnik skalowania – tak, żeby cały obraz się zmieścił
+                                                                                 
                     scale = 1
                     new_w = max(1, int(w * scale))
                     new_h = max(1, int(h * scale))
@@ -1578,7 +1503,7 @@ class SpektrometerApp(CustomTk):
 
                     self.spectrum_image_canvas.delete("all")
 
-                    # Wycentruj obraz w canvasie
+                                                
                     x_offset = 0
                     y_offset = 0
 
@@ -1591,7 +1516,7 @@ class SpektrometerApp(CustomTk):
                     self.pixelink_ready = True
                     self._set_pixelink_status("Online", 'lightgreen')
 
-                    # Zawsze aktualizuj widmo na podstawie klatki z kamery
+                                                                          
                     self._calculate_spectrum_from_frame(frame)
                     
                 except Exception:
@@ -1599,17 +1524,17 @@ class SpektrometerApp(CustomTk):
             
             while not getattr(self, '_stop_threads', False):
                 try:
-                    # Update camera display using direct method
+                                                               
                     if (hasattr(self, 'camera_manager') and 
                         self.camera_manager and 
                         self.camera_manager.running):
                         
                         camera_frame = self.camera_manager.get_current_frame()
                         if camera_frame is not None:
-                            # Update camera display in main thread
+                                                                  
                             self.after_idle(lambda f=camera_frame: update_camera_display(f))
                     
-                    # Update spectrometer display using direct buffer access
+                                                                            
                     if (hasattr(self, 'spectrometer_manager') and 
                         self.spectrometer_manager and 
                         self.spectrometer_manager.running and
@@ -1617,19 +1542,19 @@ class SpektrometerApp(CustomTk):
                         
                         frame_buffer = self.spectrometer_manager.frame_buffer
                         if frame_buffer is not None and frame_buffer.size > 0:
-                            # Update spectrum display in main thread
+                                                                    
                             self.after_idle(lambda f=frame_buffer: update_spectrum_display(f))
                     
-                    time.sleep(0.1)  # 10 FPS max for better performance
+                    time.sleep(0.1)                                     
                 except Exception as e:
                     print(f"Update thread error: {e}")
                     time.sleep(0.1)
         
-        # Start unified thread
+                              
         threading.Thread(target=update_image, daemon=True).start()
 
     def _on_exposure_change(self, value):
-        """Callback z suwaka ekspozycji (0-1 -> 0.1-1000 ms)."""
+        
         try:
             raw = float(str(value).replace(',', '.'))
             raw = max(0.0, min(1.0, raw))
@@ -1640,7 +1565,7 @@ class SpektrometerApp(CustomTk):
             print(f"Exposure slider error: {e}")
 
     def _on_gain_change(self, value):
-        """Callback z suwaka gain (0-1 -> 1-10)."""
+        
         try:
             raw = float(str(value).replace(',', '.'))
             raw = max(0.0, min(1.0, raw))
@@ -1651,13 +1576,13 @@ class SpektrometerApp(CustomTk):
             print(f"Gain slider error: {e}")
 
     def _apply_exposure_ms(self, exposure_ms: float):
-        """Ustaw ekspozycję (GUI + options + kamera) w jednym miejscu."""
+        
         try:
             self.exposure_var.set(exposure_ms)
             self.exposure_value_label.configure(text=f"{exposure_ms:.1f} ms")
             options['exposure_time'] = float(exposure_ms)
 
-            # Zsynchronizuj położenie suwaka 0-1 z aktualną wartością ms
+                                                                      
             try:
                 min_ms, max_ms = 0.1, 1000.0
                 frac = (float(exposure_ms) - min_ms) / (max_ms - min_ms)
@@ -1669,11 +1594,11 @@ class SpektrometerApp(CustomTk):
             except Exception:
                 pass
 
-            # Zaktualizuj await tak, żeby czekać co najmniej tyle, co ekspozycja
+                                                                           
             exposure_s = max(0.001, float(exposure_ms) / 1000.0)
             options['await'] = max(0.01, min(2.0, exposure_s + 0.1))
             self.save_options()
-            # Ustaw wartość w kamerze przez SpectrometerManager
+                                                               
             try:
                 self.spectrometer_manager.apply_exposure(exposure_ms)
             except Exception as e:
@@ -1682,13 +1607,13 @@ class SpektrometerApp(CustomTk):
             print(f"Apply exposure error: {e}")
 
     def _apply_gain_value(self, gain_value: float):
-        """Ustaw gain (GUI + options + kamera) w jednym miejscu."""
+        
         try:
             self.gain_var.set(gain_value)
             self.gain_value_label.configure(text=f"{gain_value:.1f}")
             options['gain'] = float(gain_value)
 
-            # Zsynchronizuj położenie suwaka 0-1 z aktualną wartością gain (1-10)
+                                                                            
             try:
                 min_gain, max_gain = 1.0, 10.0
                 frac = (float(gain_value) - min_gain) / (max_gain - min_gain)
@@ -1700,7 +1625,7 @@ class SpektrometerApp(CustomTk):
             except Exception:
                 pass
 
-            # Przy zmianie gain też odśwież await na podstawie aktualnej ekspozycji
+                                                                            
             try:
                 cur_exp_ms = float(self.exposure_var.get())
             except Exception:
@@ -1708,7 +1633,7 @@ class SpektrometerApp(CustomTk):
             exposure_s = max(0.001, cur_exp_ms / 1000.0)
             options['await'] = max(0.01, min(2.0, exposure_s + 0.1))
             self.save_options()
-            # Ustaw wartość w kamerze przez SpectrometerManager
+                                                               
             try:
                 self.spectrometer_manager.apply_gain(gain_value)
             except Exception as e:
@@ -1727,15 +1652,15 @@ class SpektrometerApp(CustomTk):
 
 
     def _setup_results_tab(self):
-        """Setup results tab"""
-        # Control buttons at top
+        
+                                
         control_frame = Frame(self.tab_results, bg=self.DGRAY)
         control_frame.pack(fill=X, padx=5, pady=5)
         
         CButton(control_frame, text="Refresh", command=self.load_measurements).pack(side=LEFT, padx=5)
         CButton(control_frame, text="Delete All", command=self.delete_all_measurements).pack(side=LEFT, padx=5)
         
-        # Info label
+                    
         self.results_info = Label(
             control_frame, 
             text="Measurements: 0", 
@@ -1743,60 +1668,60 @@ class SpektrometerApp(CustomTk):
         )
         self.results_info.pack(side=RIGHT, padx=10)
         
-        # Main frame with canvas for scrolling
+                                              
         main_frame = Frame(self.tab_results, bg=self.DGRAY)
         main_frame.pack(fill=BOTH, expand=True, padx=5, pady=5)
         
-        # Canvas and scrollbars
+                               
         self.results_canvas = Canvas(main_frame, bg=self.DGRAY, highlightthickness=0)
         v_scrollbar = Scrollbar(main_frame, orient=VERTICAL, command=self.results_canvas.yview)
         h_scrollbar = Scrollbar(main_frame, orient=HORIZONTAL, command=self.results_canvas.xview)
         
-        # Scrollable frame inside canvas
+                                        
         self.results_frame = Frame(self.results_canvas, bg=self.DGRAY)
         
-        # Configure scrolling
+                             
         self.results_canvas.configure(
             yscrollcommand=v_scrollbar.set,
             xscrollcommand=h_scrollbar.set
         )
         
-        # Create window in canvas
+                                 
         self.canvas_frame = self.results_canvas.create_window(
             (0, 0), window=self.results_frame, anchor="nw"
         )
         
-        # Pack scrollbars and canvas
+                                    
         v_scrollbar.pack(side=RIGHT, fill=Y)
         h_scrollbar.pack(side=BOTTOM, fill=X)
         self.results_canvas.pack(side=LEFT, fill=BOTH, expand=True)
         
-        # Bind canvas resize
+                            
         self.results_canvas.bind('<Configure>', self._on_canvas_configure)
         self.results_frame.bind('<Configure>', self._on_frame_configure)
         
-        # Bind mousewheel to canvas
+                                   
         self.results_canvas.bind("<MouseWheel>", self._on_mousewheel)
 
     def _setup_settings_tab(self):
-        """Setup settings tab"""
+        
         settings_frame = Frame(self.tab_settings, bg=self.DGRAY)
         settings_frame.pack(fill=BOTH, expand=True, padx=20, pady=20)
         
-        # Movement settings
+                           
         Label(settings_frame, text="Movement Settings", font=("Arial", 14, "bold"), 
               bg=self.DGRAY, fg='white').grid(row=0, column=0, columnspan=2, pady=10)
         
-        # Variables for settings (values in micrometers)
+                                                        
         self.step_x = IntVar(value=options.get('step_x', 20))
         self.step_y = IntVar(value=options.get('step_y', 20))
         self.scan_width = IntVar(value=options.get('width', 200))
         self.scan_height = IntVar(value=options.get('height', 200))
         self.starting_corner = StringVar(value=options.get('starting_corner', 'top-left'))
-        # Lens magnification (factor by which scan width/height are scaled)
+                                                                           
         self.lens_magnification_var = DoubleVar(value=options.get('lens_magnification', 1.0))
         
-        # Settings entries
+                          
         settings_data = [
             ("Step X (μm):", self.step_x),
             ("Step Y (μm):", self.step_y),
@@ -1812,7 +1737,7 @@ class SpektrometerApp(CustomTk):
                 textvariable=var,
                 bg=self.RGRAY,
                 fg='white',
-                insertbackground='white',  # widoczny kursor na ciemnym tle
+                insertbackground='white',                                  
                 relief='flat',
                 highlightthickness=1,
                 highlightbackground=self.RGRAY,
@@ -1820,14 +1745,14 @@ class SpektrometerApp(CustomTk):
             )
             e.grid(row=i, column=1, sticky=EW, pady=5)
 
-        # Starting corner selection
+                                   
         corner_row = len(settings_data) + 1
         Label(settings_frame, text="Starting Corner:", bg=self.DGRAY, fg='white').grid(row=corner_row, column=0, sticky=W, pady=5)
         corner_options = ['top-left', 'top-right', 'bottom-left', 'bottom-right']
         self.corner_combo = ttk.Combobox(settings_frame, textvariable=self.starting_corner, values=corner_options, state='readonly')
         self.corner_combo.grid(row=corner_row, column=1, sticky=EW, pady=5)
 
-        # Port settings only (moved camera + calibration to Camera & Controls)
+                                                                              
         row_base = len(settings_data) + 3
         Label(settings_frame, text="Port Settings", font=("Arial", 14, "bold"), 
               bg=self.DGRAY, fg='white').grid(row=row_base, column=0, columnspan=3, pady=10, sticky=W)
@@ -1846,7 +1771,7 @@ class SpektrometerApp(CustomTk):
         
         CButton(settings_frame, text="Refresh Ports", command=self.refresh_ports).grid(row=row_base+1, column=2, rowspan=3, padx=10, sticky=N)
         
-        # Apply button - make it more prominent (below port settings)
+                                                                     
         apply_frame = Frame(settings_frame, bg=self.DGRAY)
         apply_frame.grid(row=row_base+4, column=0, columnspan=3, pady=20)
         
@@ -1864,26 +1789,26 @@ class SpektrometerApp(CustomTk):
             pass
 
     def _apply_spectrum_roi_settings(self):
-        """Zastosuj aktualne ustawienia ROI do osi widma i zapisz w opcjach."""
+        
         try:
-            # Aktualizacja opcji
+                                
             if hasattr(self, 'spectrum_range_min_var'):
                 options['spectrum_range_min'] = float(self.spectrum_range_min_var.get())
             if hasattr(self, 'spectrum_range_max_var'):
                 options['spectrum_range_max'] = float(self.spectrum_range_max_var.get())
 
-            # Przeliczenie osi i odświeżenie wykresu
+                                                    
             self._update_spectrum_axes()
             self.spectrum_data = np.zeros(len(self.x_axis))
             self._update_spectrum_plot()
 
-            # Zapis do options.json
+                                   
             self.save_options()
         except Exception:
             pass
 
     def _reset_spectrum_roi_settings(self):
-        """Przywróć pełny zakres spektrum (bez dodatkowego przycinania ROI)."""
+        
         try:
             
             self._apply_spectrum_roi_settings()
@@ -1891,9 +1816,9 @@ class SpektrometerApp(CustomTk):
             pass
 
     def _update_spectrum_axes(self):
-        """Ustaw oś X dla widma z uwzględnieniem prostego ROI (długość fali)."""
+        
         try:
-            # Zakres długości fali (konfigurowalny w opcjach)
+                                                             
             wl_min = float(options.get('wavelength_min', 0.0))
             wl_max = float(options.get('wavelength_max', 2048.0))
             base_axis = np.linspace(wl_min, wl_max, 2048)
@@ -1915,12 +1840,12 @@ class SpektrometerApp(CustomTk):
                 self.spectrum_ax.set_title(f"Spectrum (λ {roi_min:.0f}-{roi_max:.0f})",
                                            color='white', fontsize=12)
         except Exception:
-            # Fallback: prosta oś w umownych jednostkach długości fali
+                                                                      
             self.x_axis = np.linspace(0, 2048, 2048)
             self.spectrum_roi_indices = None
 
     def _apply_spectrum_roi(self, spectrum_array):
-        """Zastosuj bieżący ROI do jednowymiarowego widma."""
+        
         try:
             if spectrum_array is None:
                 return spectrum_array
@@ -1935,7 +1860,7 @@ class SpektrometerApp(CustomTk):
             return spectrum_array
 
     def _calculate_spectrum_from_frame(self, frame):
-        """Wylicz widmo 1D z klatki (średnia po osi pionowej + ROI)."""
+        
         try:
             if frame is None or frame.size == 0:
                 return
@@ -1950,7 +1875,7 @@ class SpektrometerApp(CustomTk):
 
             spectrum_profile = np.mean(frame_gray, axis=0)
 
-            # Przeskaluj do 2048 punktów jeśli potrzeba
+                                                       
             if len(spectrum_profile) != 2048:
                 x_old = np.linspace(0, 1, len(spectrum_profile))
                 x_new = np.linspace(0, 1, 2048)
@@ -1996,7 +1921,7 @@ class SpektrometerApp(CustomTk):
             pass
 
     def _setup_styles(self):
-        """Setup ttk styles"""
+        
         style = ttk.Style()
         style.theme_use('clam')
         style.configure('TNotebook', background=self.DGRAY, borderwidth=0)
@@ -2004,16 +1929,16 @@ class SpektrometerApp(CustomTk):
         style.map('TNotebook.Tab', background=[('selected', self.RGRAY)])
 
     def _on_canvas_configure(self, event):
-        """Handle canvas resize"""
+        
         canvas_width = event.width
         self.results_canvas.itemconfig(self.canvas_frame, width=canvas_width)
 
     def _on_frame_configure(self, event):
-        """Handle frame resize"""
+        
         self.results_canvas.configure(scrollregion=self.results_canvas.bbox("all"))
 
     def _on_mousewheel(self, event):
-        """Handle mouse wheel scrolling"""
+        
         self.results_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
 
     def console_output(self, message):
@@ -2044,32 +1969,32 @@ class SpektrometerApp(CustomTk):
         
         self._update_motor_status()
         
-        # Initial sequence button state update
+                                              
         self.after(2000, self._update_start_seq_state)
         
     def _update_motor_status(self):
-        """Update motor status periodically"""
+        
         try:
-            # Check if app is being destroyed
+                                             
             if not hasattr(self, 'winfo_exists'):
                 return
             
             try:
-                # Test if window still exists
+                                             
                 self.winfo_exists()
             except:
-                # Window destroyed, stop updates
+                                                
                 return
                 
-            # Check if widget still exists before updating
+                                                          
             if not hasattr(self, 'motor_status'):
-                return  # Widget doesn't exist, stop updates
+                return                                      
                 
-            # Additional check if widget was destroyed
+                                                      
             try:
                 self.motor_status.winfo_exists()
             except:
-                return  # Widget destroyed, stop updates
+                return                                  
                 
             if hasattr(self, 'motor_controller') and hasattr(self, 'motor_status'):
                 if self.motor_controller.connected:
@@ -2082,21 +2007,21 @@ class SpektrometerApp(CustomTk):
                 self.motor_status.config(text=status_text, fg=color)
             
         except Exception as e:
-            # Widget likely destroyed or app shutting down, stop the update cycle
+                                                                                 
             return
         
-        # Schedule next update only if app still exists and not shutting down
+                                                                             
         try:
             if (hasattr(self, 'after') and hasattr(self, '_after_ids') and 
                 not getattr(self, '_shutting_down', False)):
                 after_id = self.after(3000, self._update_motor_status)
                 self._after_ids.append(after_id)
         except Exception:
-            # App shutting down, stop scheduling updates
+                                                        
             pass
 
     def _background_initialization(self):
-        """Jednorazowa inicjalizacja: PixeLink + pomiary + stan silników."""
+        
         try:
             motors_ok = self.motor_controller.connected
 
@@ -2125,18 +2050,18 @@ class SpektrometerApp(CustomTk):
             print(f"Background initialization error: {e}")
 
     def _set_pixelink_status(self, text, fg):
-        """Update both main and reconnect Pixelink status labels consistently."""
+        
         try:
             if hasattr(self, 'pixelink_status') and self.pixelink_status is not None:
                 self.pixelink_status.config(text=text, fg=fg)
             if hasattr(self, 'pixelink_reconnect_status') and self.pixelink_reconnect_status is not None:
                 self.pixelink_reconnect_status.config(text=text, fg=fg)
         except Exception:
-            # Ignore UI update errors (e.g. during shutdown)
+                                                            
             pass
 
     def _sync_camera_controls(self):
-        """Pobierz aktualne wartości z kamery i ustaw w GUI."""
+        
         try:
             if not self.spectrometer_manager.hCamera:
                 return
@@ -2166,7 +2091,7 @@ class SpektrometerApp(CustomTk):
                     self.spectrometer_manager.start()
                     self.pixelink_ready = True
                     self.after_idle(lambda: self._set_pixelink_status("Online", 'lightgreen'))
-                    # Po udanym reconnect zsynchronizuj suwaki z aktualnymi wartościami kamery
+                                                                                              
                     self.after_idle(self._sync_camera_controls)
                     self.after_idle(self._update_start_seq_state)
                 else:
@@ -2183,7 +2108,7 @@ class SpektrometerApp(CustomTk):
 
 
     def on_closing(self):
-        """Handle window closing - cleanup and exit program"""
+        
         try:
             print("Closing application...")
             self.cleanup()
@@ -2194,23 +2119,23 @@ class SpektrometerApp(CustomTk):
                 self.destroy()
             except:
                 pass
-            # Force program termination
+                                       
             import sys
             sys.exit(0)
     def cleanup(self):
-        """Cleanup resources (stop threads, close devices, restore stdout)."""
+        
         try:
             self._shutting_down = True
         except Exception:
             pass
 
-        # Stop background update loop
+                                     
         try:
             self._stop_threads = True
         except Exception:
             pass
 
-        # Cancel scheduled after() callbacks if tracked
+                                                       
         try:
             if hasattr(self, '_after_ids'):
                 for aid in self._after_ids:
@@ -2222,7 +2147,7 @@ class SpektrometerApp(CustomTk):
         except Exception:
             pass
 
-        # Stop hardware
+                       
         try:
             if hasattr(self, 'spectrometer_manager') and self.spectrometer_manager:
                 self.spectrometer_manager.stop()
@@ -2235,7 +2160,7 @@ class SpektrometerApp(CustomTk):
         except Exception as e:
             print(f"Cleanup motor error: {e}")
 
-        # Clear image references to avoid PhotoImage errors at shutdown
+                                                                       
         try:
             if hasattr(self, 'camera_canvas'):
                 try:
@@ -2296,18 +2221,18 @@ class SpektrometerApp(CustomTk):
             pass
 
     def stop_measurement_sequence(self):
-        """Stop running measurement sequence"""
+        
         if self._sequence_running:
             self._sequence_stop_requested = True
             print("Stopping measurement sequence...")
             
-            # Update UI immediately
+                                   
             if hasattr(self, 'start_seq_btn'):
                 self.start_seq_btn.config(state=NORMAL)
             if hasattr(self, 'stop_seq_btn'):
                 self.stop_seq_btn.config(state=DISABLED)
             
-            # The cleanup will be handled by the sequence thread
+                                                                
             print("Sequence stop requested - cleanup will follow")
 
     def start_measurement_sequence(self):
@@ -2315,7 +2240,7 @@ class SpektrometerApp(CustomTk):
         self._start_sequence_thread()
     
     def _start_sequence_thread(self):
-        """Sekwencja pomiarowa: objazd obszaru + snake pattern bez sortowania danych."""
+        
 
         def sequence():
             nonlocal_filename = None
@@ -2338,7 +2263,7 @@ class SpektrometerApp(CustomTk):
                     print("ERROR: No hardware available - check connections!")
                     return
 
-                # Katalog na dane
+                                 
                 folder = "measurement_data"
                 os.makedirs(folder, exist_ok=True)
                 filename = os.path.join(folder, f"measurement_{time.strftime('%Y%m%d_%H%M%S')}_spectra.csv")
@@ -2355,7 +2280,7 @@ class SpektrometerApp(CustomTk):
 
                 print(f"Scan grid: {nx} x {ny} = {total_points} points")
 
-                # Ustal kierunki poziomy/pionowy względem wybranego narożnika
+                                                                                              
                 corner = self.starting_corner.get() if hasattr(self, 'starting_corner') else 'top-left'
                 if corner == 'top-left':
                     horiz_dir = 'r'
@@ -2375,7 +2300,7 @@ class SpektrometerApp(CustomTk):
 
                 horiz_dir_opposite = 'l' if horiz_dir == 'r' else 'r'
 
-                # Przeliczenie wymiarów skanu w µm przy uwzględnieniu powiększenia
+                                                                  
                 lens_mag = 1.0
                 try:
                     if hasattr(self, 'lens_magnification_var'):
@@ -2388,7 +2313,7 @@ class SpektrometerApp(CustomTk):
                 half_w = scan_width_um // 2
                 half_h = scan_height_um // 2
 
-                # Ruch z centrum do wybranego narożnika
+                                                     
                 if motors_connected:
                     dx_corner = 0.0
                     dy_corner = 0.0
@@ -2406,22 +2331,22 @@ class SpektrometerApp(CustomTk):
                     await_delay = float(options.get('await', 0.01)) * 20
                     time.sleep(await_delay)
 
-                    # Objazd obwodu obszaru (start i koniec w narożniku startowym)
+                                                                                         
                     print("Driving around scan area perimeter...")
-                    # 1) w poziomie
+                                   
                     self.motor_controller.move(dx_um=scan_width_um if horiz_dir == 'r' else -scan_width_um)
                     time.sleep(await_delay)
-                    # 2) w pionie
+                                 
                     self.motor_controller.move(dy_um=scan_height_um if vert_dir == 'd' else -scan_height_um)
                     time.sleep(await_delay)
-                    # 3) powrót w poziomie
+                                          
                     self.motor_controller.move(dx_um=-scan_width_um if horiz_dir == 'r' else scan_width_um)
                     time.sleep(await_delay)
-                    # 4) powrót w pionie
+                                        
                     self.motor_controller.move(dy_um=-scan_height_um if vert_dir == 'd' else scan_height_um)
                     time.sleep(await_delay)
 
-                    # Pytanie użytkownika czy obszar się zgadza (CustomToplevel)
+                                                                      
                     if not self._confirm_area():
                         print("Area not confirmed by user - aborting sequence.")
                         return
@@ -2437,7 +2362,7 @@ class SpektrometerApp(CustomTk):
                         if self._sequence_stop_requested:
                             break
 
-                        # Kierunek wiersza w snake pattern
+                                                            
                         row_dir = horiz_dir if (iy % 2 == 0) else horiz_dir_opposite
 
                         for ix in range(nx):
@@ -2448,7 +2373,7 @@ class SpektrometerApp(CustomTk):
                             grid_x = ix
                             grid_y = iy
 
-                            # Widmo z aktualnej klatki Pixelink
+                                                               
                             frame = None
                             if hasattr(self, 'pixelink_image_data') and self.pixelink_image_data is not None:
                                 frame = self.pixelink_image_data
@@ -2475,7 +2400,7 @@ class SpektrometerApp(CustomTk):
                             else:
                                 spectrum = np.zeros(2048)
 
-                            # Zapis bez sortowania – dokładnie w kolejności skanowania
+                                                                          
                             writer.writerow([grid_x, grid_y] + spectrum.tolist())
 
                             elapsed = time.time() - start_time
@@ -2483,7 +2408,7 @@ class SpektrometerApp(CustomTk):
                             eta = (elapsed / point_index * (total_points - point_index)) if point_index > 0 else 0.0
                             print(f"Point {point_index}/{total_points} ({progress:.1f}%) grid=({grid_x},{grid_y}) ETA={eta:.0f}s")
 
-                            # Czas oczekiwania zależny od ekspozycji
+                                                           
                             try:
                                 exposure_ms = float(self.exposure_var.get()) if hasattr(self, 'exposure_var') else float(options.get('exposure_time', 10.0))
                             except Exception:
@@ -2493,23 +2418,23 @@ class SpektrometerApp(CustomTk):
                             actual_sleep = max(configured_sleep, exposure_s + 0.1)
                             time.sleep(actual_sleep)
 
-                            # Ruch stolika w snake pattern (tylko jeśli jest podłączony)
+                                                                                 
                             if motors_connected:
                                 is_last_col = (ix == nx - 1)
                                 is_last_row = (iy == ny - 1)
 
                                 if not is_last_col:
-                                    # Ruch w poziomie zgodnie z kierunkiem dla danego wiersza
+                                                                                             
                                     dx = step_x if row_dir == 'r' else -step_x
                                     self.motor_controller.move(dx_um=dx, dy_um=0.0)
                                 elif not is_last_row:
-                                    # Koniec wiersza – krok w pionie do następnego wiersza
+                                                                                          
                                     dy = step_y if vert_dir == 'd' else -step_y
                                     self.motor_controller.move(dx_um=0.0, dy_um=dy)
 
                     scan_completed = not self._sequence_stop_requested
 
-                    # Prosta kontrola spójności: liczba punktów powinna zgadzać się z planem
+                                                                                      
                     if scan_completed and point_index != total_points:
                         print(f"WARNING: scanned points {point_index} != planned {total_points}")
 
@@ -2524,7 +2449,7 @@ class SpektrometerApp(CustomTk):
 
             except Exception as e:
                 print(f"Sequence error: {e}")
-                # Usuń niedokończony plik
+                                        
                 if nonlocal_filename and os.path.exists(nonlocal_filename):
                     try:
                         os.remove(nonlocal_filename)
@@ -2543,14 +2468,14 @@ class SpektrometerApp(CustomTk):
         threading.Thread(target=sequence, daemon=True).start()
 
     def apply_settings(self):
-        """Apply and save settings"""
+        
         global options
         
         step_x = max(2, self.step_x.get())
         step_y = max(2, self.step_y.get())
         scan_width = max(2, self.scan_width.get())
         scan_height = max(2, self.scan_height.get())
-        # Ensure reasonable lens magnification
+                                              
         if hasattr(self, 'lens_magnification_var'):
             try:
                 lens_mag = float(self.lens_magnification_var.get())
@@ -2593,7 +2518,7 @@ class SpektrometerApp(CustomTk):
             
             options.update(settings)
 
-            # Update spectrum axis and clear spectrum data to match new range
+                                                                             
             try:
                 self._update_spectrum_axes()
                 self.spectrum_data = np.zeros(len(self.x_axis))
@@ -2606,31 +2531,31 @@ class SpektrometerApp(CustomTk):
                 self.port_x_var.get(),
                 self.port_y_var.get()
             )
-            # Force immediate motor status update
-            self.after(100, self._update_motor_status)  # Szybsza aktualizacja
+                                                 
+            self.after(100, self._update_motor_status)                 
 
         except Exception as e:
             print(f"Settings save error: {e}")
 
-    # Removed unused calibration functions
+                                          
         return
         
 
     def load_measurements(self):
-        """Load measurement files list without caching data"""
+        
         folder = "measurement_data"
-        self.measurement_files = []  # Store only filenames, not data
+        self.measurement_files = []                                  
         if not os.path.exists(folder):
             os.makedirs(folder)
         
-        # Just collect filenames - don't load data into memory
+                                                              
         for filename in sorted(glob.glob(os.path.join(folder, "*_spectra.csv"))):
             self.measurement_files.append(filename)
             
         self.draw_measurements()
     
     def delete_all_measurements(self):
-        """Delete all measurements"""
+        
         if not self.measurement_files:
             CustomToplevel.alert(self, "No measurements to delete", "Info")
             return
@@ -2647,7 +2572,7 @@ class SpektrometerApp(CustomTk):
                 folder = "measurement_data"
                 deleted_count = 0
                 
-                # Delete all CSV files
+                                      
                 for filename in glob.glob(os.path.join(folder, "*_spectra.csv")):
                     if os.path.exists(filename):
                         os.remove(filename)
@@ -2663,7 +2588,7 @@ class SpektrometerApp(CustomTk):
                 CustomToplevel.alert(self, f"Cannot delete measurements:\n{e}", "Error")
 
     def delete_measurement(self, measurement_index):
-        """Delete selected measurement"""
+        
         if 0 <= measurement_index < len(self.measurement_files):
             result = CustomToplevel.confirm(
                 self,
@@ -2685,13 +2610,13 @@ class SpektrometerApp(CustomTk):
                     CustomToplevel.alert(self, f"Cannot delete measurement:\n{e}", "Error")
 
     def draw_measurements(self):
-        """Draw measurement buttons in grid layout"""
-        # Clear existing buttons
+        
+                                
         for widget in self.results_frame.winfo_children():
             widget.destroy()
         
         if not self.measurement_files:
-            # Show message if no measurements
+                                             
             Label(
                 self.results_frame, 
                 text="No measurements\nRun measurement sequence to create data",
@@ -2699,28 +2624,28 @@ class SpektrometerApp(CustomTk):
                 justify=CENTER
             ).grid(row=0, column=0, padx=20, pady=20)
         else:
-            # Create grid of measurement buttons
-            buttons_per_row = 5  # Number of buttons per row
+                                                
+            buttons_per_row = 5                             
             
             for i, filename in enumerate(self.measurement_files):
                 row = i // buttons_per_row
                 col = i % buttons_per_row
                 
-                # Create button frame for better styling
+                                                        
                 button_frame = Frame(self.results_frame, bg=self.DGRAY, relief='raised', bd=1)
                 button_frame.grid(row=row, column=col, padx=5, pady=5, sticky='nsew')
                 
-                # Main button
+                             
                 btn = CButton(
                     button_frame,
-                    text=f"Pomiar {i+1}",
+                    text=f"Measurement {i+1}",
                     command=lambda idx=i: self.show_measurement_by_index(idx),
                     width=12, height=2,
                     font=("Arial", 10, "bold")
                 )
                 btn.pack(fill=BOTH, expand=True, padx=2, pady=2)
                 
-                # Info label with filename
+                                          
                 basename = os.path.basename(filename)
                 info_label = Label(
                     button_frame,
@@ -2730,7 +2655,7 @@ class SpektrometerApp(CustomTk):
                 )
                 info_label.pack(fill=X, padx=2, pady=(0, 2))
                 
-                # Delete button (small)
+                                       
                 delete_btn = Button(
                     button_frame,
                     text="×",
@@ -2740,16 +2665,16 @@ class SpektrometerApp(CustomTk):
                 )
                 delete_btn.pack(side=RIGHT, anchor='ne', padx=2, pady=2)
             
-            # Configure grid weights for proper resizing
+                                                        
             for i in range(buttons_per_row):
                 self.results_frame.columnconfigure(i, weight=1)
         
-        # Update info label
+                           
         if hasattr(self, 'results_info'):
-            self.results_info.config(text=f"Pomiary: {len(self.measurement_files)}")
+            self.results_info.config(text=f"Measurements: {len(self.measurement_files)}")
 
     def show_measurement_by_index(self, index):
-        """Otwórz wybrany pomiar w oknie HeatMapWindow (z pliku CSV)."""
+        
         try:
             if not (0 <= index < len(self.measurement_files)):
                 return
@@ -2762,11 +2687,11 @@ class SpektrometerApp(CustomTk):
             print(f"Error showing measurement {index}: {e}")
 
     def _confirm_area(self):
-        """Pytanie o obszar korzystające z CustomToplevel.confirm."""
+        
         try:
-            return CustomToplevel.confirm(self, "Czy obszar się zgadza?", "Potwierdź obszar")
+            return CustomToplevel.confirm(self, "Is the scan area correct?", "Confirm area")
         except Exception:
-            # Awaryjnie po prostu False
+                                       
             return False
 
 
