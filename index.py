@@ -13,6 +13,7 @@ from tkinter import ttk, filedialog, messagebox
 import json
 import csv
 import glob
+import shutil
 
 # Third-party imports
 import cv2
@@ -41,7 +42,10 @@ except FileNotFoundError:
         'camera_index': 0,  # Try camera 0 by default
         # Camera settings
         'exposure_time': 10.0,  # Exposure time in milliseconds
-        'gain': 1.0  # Camera gain multiplier
+        'gain': 1.0,  # Camera gain multiplier
+        # Optional list of exposure times (ms) for sequence measurements, as comma-separated string
+        # Example: "10, 50, 200" -> three spectra per point
+        'sequence_exposure_times': ""
     }
 
 # Color constants
@@ -1407,11 +1411,28 @@ class SpektrometerApp(CustomTk):
         
         # Gain value label
         self.gain_value_label = Label(
-                gain_frame, 
-                text=f"{self.gain_var.get():.1f}",
-                bg=self.DGRAY, fg='lightgray', font=("Arial", 8)  # Smaller font
+            gain_frame, 
+            text=f"{self.gain_var.get():.1f}",
+            bg=self.DGRAY, fg='lightgray', font=("Arial", 8)  # Smaller font
         )
         self.gain_value_label.pack(anchor=W)
+
+        # Sequence exposure list (comma-separated, in ms) – separate row under both sliders
+        seq_frame = Frame(controls_frame, bg=self.DGRAY)
+        seq_frame.pack(fill=X, padx=15, pady=(2, 0))
+
+        Label(
+            seq_frame,
+            text="Seq. exposures (ms, ,)",
+            bg=self.DGRAY, fg='white', font=("Arial", 8)
+        ).pack(side=LEFT)
+
+        self.sequence_exposure_var = StringVar(value=str(self.options.get('sequence_exposure_times', "")))
+        Entry(
+            seq_frame,
+            textvariable=self.sequence_exposure_var,
+            bg=self.RGRAY, fg='white', width=24
+        ).pack(side=LEFT, padx=(5, 0))
 
         # ---- Spectrum ROI + Auto spectrum (moved from Settings tab) ----
         spectrum_ctrl_frame = Frame(controls_frame, bg=self.DGRAY)
@@ -1959,6 +1980,9 @@ class SpektrometerApp(CustomTk):
                 
             if hasattr(self, 'sequence_sleep_var'):
                 self.options['sequence_sleep'] = self.sequence_sleep_var.get()
+
+            if hasattr(self, 'sequence_exposure_var'):
+                self.options['sequence_exposure_times'] = self.sequence_exposure_var.get()
 
             if hasattr(self, 'spectrum_range_min_var'):
                 self.options['spectrum_range_min'] = float(self.spectrum_range_min_var.get())
@@ -2993,6 +3017,7 @@ class SpektrometerApp(CustomTk):
             'lens_magnification': float(lens_mag),
             'spectrum_range_min': float(self.spectrum_range_min_var.get()) if hasattr(self, 'spectrum_range_min_var') else options.get('spectrum_range_min', options.get('lambda_min', 0.0)),
             'spectrum_range_max': float(self.spectrum_range_max_var.get()) if hasattr(self, 'spectrum_range_max_var') else options.get('spectrum_range_max', options.get('lambda_max', 2048.0)),
+            'sequence_exposure_times': self.sequence_exposure_var.get() if hasattr(self, 'sequence_exposure_var') else options.get('sequence_exposure_times', ""),
             'await': 0.01
         }
         
