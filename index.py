@@ -1316,34 +1316,52 @@ class SpektrometerApp(CustomTk):
         except Exception:
             pass
         self.exposure_scale.pack(fill=X, pady=(2, 0))  # Reduced padding
+        # Pole do bezpośredniego wpisania wartości ekspozycji (ms)
+        exp_input_frame = Frame(exposure_frame, bg=self.DGRAY)
+        exp_input_frame.pack(fill=X, pady=(2, 0))
 
-        # Fallback controls: +/- buttons for exposure (in case dragging is problematic)
-        exp_btn_frame = Frame(exposure_frame, bg=self.DGRAY)
-        exp_btn_frame.pack(fill=X, pady=(2, 0))
+        self.exposure_entry_var = StringVar(value=f"{self.exposure_var.get():.1f}")
 
-        def _exp_step(delta):
-            """Step exposure in ms i przestaw też suwak 0-1."""
+        def _apply_exposure_from_entry(event=None):
+            """Zastosuj wartość z pola tekstowego (ms) i zsynchronizuj suwak."""
             try:
+                text = (self.exposure_entry_var.get() or "").replace(",", ".")
+                value = float(text)
                 min_ms, max_ms = 0.1, 1000.0
-                cur_ms = float(self.exposure_var.get())
-                new_ms = min(max_ms, max(min_ms, cur_ms + delta))
-                self.exposure_var.set(new_ms)
+                value = min(max_ms, max(min_ms, value))
+                self.exposure_var.set(value)
 
                 # Oblicz odpowiadającą pozycję suwaka (0-1) i ustaw Scale
-                frac = (new_ms - min_ms) / (max_ms - min_ms)
+                frac = (value - min_ms) / (max_ms - min_ms)
                 frac = max(0.0, min(1.0, frac))
                 if hasattr(self, 'exposure_scale'):
                     self.exposure_scale.set(frac)
                 if hasattr(self, '_exposure_slider_var'):
                     self._exposure_slider_var.set(frac)
 
-                # Wywołaj tę samą logikę co przy ruchu suwaka
-                self._apply_exposure_ms(new_ms)
+                # Zastosuj w kamerze i zaktualizuj etykietę
+                self._apply_exposure_ms(value)
+                self.exposure_entry_var.set(f"{value:.1f}")
             except Exception:
-                pass
+                # Przy błędzie wróć do ostatniej poprawnej wartości
+                try:
+                    v = float(self.exposure_var.get())
+                    self.exposure_entry_var.set(f"{v:.1f}")
+                except Exception:
+                    self.exposure_entry_var.set("")
 
-        CButton(exp_btn_frame, text="-", command=lambda: _exp_step(-1.0), width=2).pack(side=LEFT, padx=(0, 4))
-        CButton(exp_btn_frame, text="+", command=lambda: _exp_step(1.0), width=2).pack(side=LEFT)
+        exp_entry = Entry(
+            exp_input_frame,
+            textvariable=self.exposure_entry_var,
+            bg=self.RGRAY,
+            fg='white',
+            width=8,
+            insertbackground='white'
+        )
+        exp_entry.pack(side=LEFT)
+        exp_entry.bind("<Return>", _apply_exposure_from_entry)
+        exp_entry.bind("<FocusOut>", _apply_exposure_from_entry)
+        Label(exp_input_frame, text="ms", bg=self.DGRAY, fg='lightgray', font=("Arial", 8)).pack(side=LEFT, padx=(4, 0))
         
         # Exposure value label
         self.exposure_value_label = Label(
@@ -1382,32 +1400,48 @@ class SpektrometerApp(CustomTk):
         except Exception:
             pass
         self.gain_scale.pack(fill=X, pady=(2, 0))  # Reduced padding
+        # Pole do bezpośredniego wpisania gain (1-10)
+        gain_input_frame = Frame(gain_frame, bg=self.DGRAY)
+        gain_input_frame.pack(fill=X, pady=(2, 0))
 
-        # Fallback controls: +/- buttons for gain
-        gain_btn_frame = Frame(gain_frame, bg=self.DGRAY)
-        gain_btn_frame.pack(fill=X, pady=(2, 0))
+        self.gain_entry_var = StringVar(value=f"{self.gain_var.get():.1f}")
 
-        def _gain_step(delta):
-            """Step gain 1-10 i przestaw też suwak 0-1."""
+        def _apply_gain_from_entry(event=None):
+            """Zastosuj wartość gain z pola tekstowego i zsynchronizuj suwak."""
             try:
+                text = (self.gain_entry_var.get() or "").replace(",", ".")
+                value = float(text)
                 min_gain, max_gain = 1.0, 10.0
-                cur = float(self.gain_var.get())
-                new = min(max_gain, max(min_gain, cur + delta))
-                self.gain_var.set(new)
+                value = min(max_gain, max(min_gain, value))
+                self.gain_var.set(value)
 
-                frac = (new - min_gain) / (max_gain - min_gain)
+                frac = (value - min_gain) / (max_gain - min_gain)
                 frac = max(0.0, min(1.0, frac))
                 if hasattr(self, 'gain_scale'):
                     self.gain_scale.set(frac)
                 if hasattr(self, '_gain_slider_var'):
                     self._gain_slider_var.set(frac)
 
-                self._apply_gain_value(new)
+                self._apply_gain_value(value)
+                self.gain_entry_var.set(f"{value:.1f}")
             except Exception:
-                pass
+                try:
+                    v = float(self.gain_var.get())
+                    self.gain_entry_var.set(f"{v:.1f}")
+                except Exception:
+                    self.gain_entry_var.set("")
 
-        CButton(gain_btn_frame, text="-", command=lambda: _gain_step(-0.1), width=2).pack(side=LEFT, padx=(0, 4))
-        CButton(gain_btn_frame, text="+", command=lambda: _gain_step(0.1), width=2).pack(side=LEFT)
+        gain_entry = Entry(
+            gain_input_frame,
+            textvariable=self.gain_entry_var,
+            bg=self.RGRAY,
+            fg='white',
+            width=8,
+            insertbackground='white'
+        )
+        gain_entry.pack(side=LEFT)
+        gain_entry.bind("<Return>", _apply_gain_from_entry)
+        gain_entry.bind("<FocusOut>", _apply_gain_from_entry)
         
         # Gain value label
         self.gain_value_label = Label(
@@ -1646,6 +1680,11 @@ class SpektrometerApp(CustomTk):
         """Zastosuj ekspozycję podaną w milisekundach (jedna logika dla suwaka i przycisków)."""
         try:
             self.exposure_value_label.configure(text=f"{exposure_ms:.1f} ms")
+            if hasattr(self, 'exposure_entry_var'):
+                try:
+                    self.exposure_entry_var.set(f"{exposure_ms:.1f}")
+                except Exception:
+                    pass
             # Zapis w opcjach
             self.options['exposure_time'] = float(exposure_ms)
             self.save_options()
@@ -1667,6 +1706,11 @@ class SpektrometerApp(CustomTk):
         """Zastosuj gain w jednostkach logicznych (1-10)."""
         try:
             self.gain_value_label.configure(text=f"{gain_value:.1f}")
+            if hasattr(self, 'gain_entry_var'):
+                try:
+                    self.gain_entry_var.set(f"{gain_value:.1f}")
+                except Exception:
+                    pass
             self.options['gain'] = float(gain_value)
             self.save_options()
 
@@ -2565,6 +2609,25 @@ class SpektrometerApp(CustomTk):
             self._update_start_seq_state()
             return False
 
+    @staticmethod
+    def _format_seconds_hms(seconds: float) -> str:
+        """Zamień liczbę sekund na zapis H:MM:SS (pełny czas).
+
+        Używane do szacowanego czasu (ETA) i całkowitego czasu skanu.
+        """
+        try:
+            s = int(max(0, round(seconds)))
+            h, rem = divmod(s, 3600)
+            m, s = divmod(rem, 60)
+            if h > 0:
+                return f"{h:d}h {m:02d}m {s:02d}s"
+            if m > 0:
+                return f"{m:d}m {s:02d}s"
+            return f"{s:d}s"
+        except Exception:
+            # awaryjnie wracamy do sekund z jedną cyfrą po przecinku
+            return f"{seconds:.1f}s"
+
     def start_pixelink(self):
         try:
             if hasattr(self.spectrometer_manager, 'hCamera') and self.spectrometer_manager.hCamera:
@@ -3071,9 +3134,12 @@ class SpektrometerApp(CustomTk):
                             elapsed = time.time() - start_time
                             progress = (point_index / total_points) * 100
                             eta = (elapsed / point_index * (total_points - point_index)) if point_index > 0 else 0
+                            eta_str = self._format_seconds_hms(eta)
 
-                            print(f"📊 Punkt {point_index}/{total_points} ({progress:.1f}%) - "
-                                f"Siatka: ({grid_x}, {grid_y}) μm - ETA: {eta:.0f}s")
+                            print(
+                                f"📊 Punkt {point_index}/{total_points} ({progress:.1f}%) - "
+                                f"Siatka: ({grid_x}, {grid_y}) μm - ETA: {eta_str}"
+                            )
                             
                             # RUCH: przejście do kolejnego punktu siatki (po wykonaniu wszystkich ekspozycji w punkcie)
                             if ix != last_ix_in_row:
@@ -3103,7 +3169,8 @@ class SpektrometerApp(CustomTk):
                     total_time = time.time() - start_time
                     print("SCAN COMPLETED!")
                     print(f"Saved {total_points} measurements to: {filename}")
-                    print(f"Scan time: {total_time:.1f} seconds")
+                    total_str = self._format_seconds_hms(total_time)
+                    print(f"Scan time: {total_str}")
                     scan_completed = True
                     self.after(100, self.load_measurements)
                 
