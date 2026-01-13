@@ -11,6 +11,7 @@
     "spectrum_range_min": 0.0,
     "spectrum_range_max": 2048.0,
     "await": 1.1,
-    "exposure_time": 1000.0,
-    "gain": 10.0
+    "exposure_time": 669.0331,
+    "gain": 10.0,
+    "sequence_exposure_times": ""
 }

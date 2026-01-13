@@ -1733,6 +1733,132 @@ class SpektrometerApp(CustomTk):
         except Exception:
             pass
 
+    def _get_sequence_exposure_list_ms(self):
+        """Zwróć listę czasów ekspozycji (ms) używanych w sekwencji.
+
+        Zasady:
+        - jeśli w polu sekwencji brak wartości -> lista z jedną wartością z suwaka,
+        - jeśli są wartości, parsujemy wszystkie poprawne liczby,
+        - każdą wartość ograniczamy do zakresu [0.1 ms, 1000 ms].
+        """
+        MIN_MS = 0.1
+        MAX_MS = 1000.0
+
+        # Bazowa wartość z suwaka / opcji
+        base_ms = None
+        try:
+            if hasattr(self, 'exposure_var'):
+                try:
+                    base_ms = float(self.exposure_var.get())
+                except Exception:
+                    base_ms = None
+            if base_ms is None:
+                base_ms = float(self.options.get('exposure_time', 10.0))
+        except Exception:
+            base_ms = 10.0
+
+        # Tekst z pola sekwencji
+        seq_text = ""
+        try:
+            if hasattr(self, 'sequence_exposure_var'):
+                seq_text = str(self.sequence_exposure_var.get() or "").strip()
+            else:
+                seq_text = str(self.options.get('sequence_exposure_times', "")).strip()
+        except Exception:
+            seq_text = ""
+
+        values = []
+
+        if seq_text:
+            try:
+                parts = [p.strip() for p in seq_text.replace(';', ',').split(',')]
+                for p in parts:
+                    if not p:
+                        continue
+                    try:
+                        v = float(p.replace(',', '.'))
+                    except Exception:
+                        print(f"Invalid sequence exposure value ignored: {p}")
+                        continue
+                    # Ogranicz każdą wartość do zakresu kamery
+                    if v < MIN_MS:
+                        v = MIN_MS
+                    if v > MAX_MS:
+                        print(f"Sequence exposure {v:.1f} ms exceeds camera limit; clamped to {MAX_MS:.1f} ms")
+                        v = MAX_MS
+                    values.append(v)
+            except Exception:
+                values = []
+
+        # Jeśli nic nie wyszło z pola sekwencji, użyj pojedynczej wartości bazowej
+        if not values:
+            v = base_ms
+            if v < MIN_MS:
+                v = MIN_MS
+            if v > MAX_MS:
+                print(f"Sequence exposure {v:.1f} ms exceeds camera limit; clamped to {MAX_MS:.1f} ms")
+                v = MAX_MS
+            values = [v]
+
+        return values
+
+    def _get_effective_sequence_exposure_ms(self):
+        MIN_MS = 0.1
+        MAX_MS = 1000.0
+
+        # Bazowa wartość z suwaka / opcji
+        base_ms = None
+        try:
+            if hasattr(self, 'exposure_var'):
+                try:
+                    base_ms = float(self.exposure_var.get())
+                except Exception:
+                    base_ms = None
+            if base_ms is None:
+                base_ms = float(self.options.get('exposure_time', 10.0))
+        except Exception:
+            base_ms = 10.0
+
+        # Tekst z pola sekwencji
+        seq_text = ""
+        try:
+            if hasattr(self, 'sequence_exposure_var'):
+                seq_text = str(self.sequence_exposure_var.get() or "").strip()
+            else:
+                seq_text = str(self.options.get('sequence_exposure_times', "")).strip()
+        except Exception:
+            seq_text = ""
+
+        chosen_ms = base_ms
+
+        # Jeśli użytkownik coś wpisał w sekwencji – spróbuj sparsować pierwszą poprawną wartość
+        if seq_text:
+            try:
+                parts = [p.strip() for p in seq_text.replace(';', ',').split(',')]
+                seq_values = []
+                for p in parts:
+                    if not p:
+                        continue
+                    try:
+                        v = float(p.replace(',', '.'))
+                        seq_values.append(v)
+                    except Exception:
+                        print(f"Invalid sequence exposure value ignored: {p}")
+                if seq_values:
+                    chosen_ms = seq_values[0]
+            except Exception:
+                # W razie błędu wracamy do wartości bazowej
+                chosen_ms = base_ms
+
+        # Ogranicz do zakresu kamery
+        if chosen_ms < MIN_MS:
+            chosen_ms = MIN_MS
+        if chosen_ms > MAX_MS:
+            print(f"Sequence exposure {chosen_ms:.1f} ms exceeds camera limit; clamped to {MAX_MS:.1f} ms")
+            chosen_ms = MAX_MS
+
+        return chosen_ms
+
     def _update_start_seq_state(self):
         try:
             if not hasattr(self, 'start_seq_btn'):
@@ -2541,8 +2667,23 @@ class SpektrometerApp(CustomTk):
                 else:
                     print("✅ Both motors and PixeLink ready for sequence")
 
+                # Lista czasów ekspozycji w sekwencji (ms)
+                try:
+                    exposures_ms = self._get_sequence_exposure_list_ms()
+                    try:
+                        times_str = ", ".join(f"{e:.1f}" for e in exposures_ms)
+                        print(f"Sequence exposure times (ms): {times_str}")
+                    except Exception:
+                        pass
+                except Exception:
+                    # awaryjnie spróbuj chociaż pojedynczej wartości
+                    try:
+                        exposures_ms = [self._get_effective_sequence_exposure_ms()]
+                    except Exception:
+                        exposures_ms = [10.0]
+
                 # Zamroź aktualne ROI dla całej sekwencji
-                # (długość widma w pliku = aktualny zakres, nie pełne 2048).
+                # (długość widma w pliku i w plikach punktowych = aktualny zakres, nie pełne 2048).
                 sequence_roi_indices = getattr(self, 'spectrum_roi_indices', None)
 
                 def apply_roi_for_sequence(spectrum_array):
@@ -2560,6 +2701,22 @@ class SpektrometerApp(CustomTk):
                         return arr[valid_idx]
                     except Exception:
                         return np.asarray(spectrum_array)
+
+                # Przygotuj oś (lambda / piksele) dla aktualnego ROI – używana w plikach (x,y)
+                try:
+                    if hasattr(self, 'x_axis') and sequence_roi_indices is not None:
+                        base_axis = np.asarray(self.x_axis)
+                        axis_vals = base_axis[sequence_roi_indices]
+                    elif hasattr(self, 'x_axis'):
+                        axis_vals = np.asarray(self.x_axis)
+                    else:
+                        test_profile = np.zeros(2048)
+                        roi_profile = apply_roi_for_sequence(test_profile)
+                        axis_vals = np.arange(len(roi_profile), dtype=float)
+                except Exception:
+                    test_profile = np.zeros(2048)
+                    roi_profile = apply_roi_for_sequence(test_profile)
+                    axis_vals = np.arange(len(roi_profile), dtype=float)
                 
                 # Track current position relative to the CENTER of the area (in micrometers)
                 # We assume sequence always starts in the center.
@@ -2612,7 +2769,10 @@ class SpektrometerApp(CustomTk):
                 # Create data folder
                 folder = "measurement_data"
                 os.makedirs(folder, exist_ok=True)
-                filename = os.path.join(folder, f"measurement_{time.strftime('%Y%m%d_%H%M%S')}_spectra.csv")
+                session_id = time.strftime('%Y%m%d_%H%M%S')
+                filename = os.path.join(folder, f"measurement_{session_id}_spectra.csv")
+                points_folder = os.path.join(folder, f"points_{session_id}")
+                os.makedirs(points_folder, exist_ok=True)
                 
                 # Get image dimensions for scan parameters
                 if hasattr(self, 'pixelink_image_data') and self.pixelink_image_data is not None:
@@ -2769,7 +2929,7 @@ class SpektrometerApp(CustomTk):
 
                     point_index = 0
 
-                    # Main scanning loop (snake pattern): POMIAR -> CZEKANIE -> KROK
+                    # Main scanning loop (snake pattern)
                     for iy in range(points_y):
                         # Check for stop request
                         if self._sequence_stop_requested:
@@ -2826,42 +2986,86 @@ class SpektrometerApp(CustomTk):
                             grid_x = int(phys_x)
                             grid_y = int(phys_y)
                             
-                            # Acquire fresh spectrum data from current camera frame
-                            if hasattr(self, 'pixelink_image_data') and self.pixelink_image_data is not None:
-                                # Calculate spectrum from current frame
-                                frame = self.pixelink_image_data
-                                if len(frame.shape) == 3:  # Color image
-                                    frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                                else:
-                                    frame_gray = frame
-                                
-                                # Calculate spectrum by averaging vertically (horizontal profile)
-                                spectrum_profile = np.mean(frame_gray, axis=0)
-                                
-                                # Resample to 2048 points jeśli potrzeba (bazowa oś)
-                                if len(spectrum_profile) != 2048:
-                                    x_old = np.linspace(0, 1, len(spectrum_profile))
-                                    x_new = np.linspace(0, 1, 2048)
-                                    spectrum_profile = np.interp(x_new, x_old, spectrum_profile)
+                            # Zbierz widma dla wszystkich czasów ekspozycji w tym punkcie
+                            spectra_for_point = []
 
-                                # DLA SEKWENCJI: zapisujemy widmo już po ROI
-                                # (ROI zamrożone przy starcie sekwencji),
-                                # dzięki temu liczba punktów w pliku = liczba punktów na heatmapie.
-                                spectrum = apply_roi_for_sequence(spectrum_profile)
-                            else:
-                                # Fallback to stored spectrum data
-                                if hasattr(self, 'spectrum_data') and self.spectrum_data is not None:
-                                    spectrum = self.spectrum_data.copy()
+                            for exp_ms in exposures_ms:
+                                # Umożliw natychmiastowe przerwanie również w trakcie listy czasów
+                                if self._sequence_stop_requested:
+                                    break
+
+                                # Ustaw ekspozycję w kamerze (tylko na warstwie API, bez dotykania GUI)
+                                try:
+                                    if hasattr(self, 'spectrometer_manager') and self.spectrometer_manager:
+                                        self.spectrometer_manager.set_exposure(exp_ms)
+                                except Exception as e:
+                                    print(f"Exposure set error in sequence: {e}")
+
+                                # Smart delay bazujący na aktualnym czasie ekspozycji
+                                exposure_time_ms = float(exp_ms)
+                                exposure_time_s = exposure_time_ms / 1000.0
+                                min_frame_time = exposure_time_s + 0.1  # ekspozycja + ~100 ms buforu
+                                configured_sleep = float(self.options.get('sequence_sleep', 0.5))
+                                actual_sleep = max(configured_sleep, min_frame_time)
+
+                                print(f"🕒 Point ({grid_x},{grid_y}) exp {exposure_time_ms:.1f} ms -> wait {actual_sleep:.2f}s")
+                                time.sleep(actual_sleep)
+
+                                # Acquire fresh spectrum data from current camera frame
+                                if hasattr(self, 'pixelink_image_data') and self.pixelink_image_data is not None:
+                                    frame = self.pixelink_image_data
+                                    if len(frame.shape) == 3:  # Color image
+                                        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                                    else:
+                                        frame_gray = frame
+
+                                    # Calculate spectrum by averaging vertically (horizontal profile)
+                                    spectrum_profile = np.mean(frame_gray, axis=0)
+
+                                    # Resample to 2048 points jeśli potrzeba (bazowa oś)
+                                    if len(spectrum_profile) != 2048:
+                                        x_old = np.linspace(0, 1, len(spectrum_profile))
+                                        x_new = np.linspace(0, 1, 2048)
+                                        spectrum_profile = np.interp(x_new, x_old, spectrum_profile)
+
+                                    # Zastosuj ROI zamrożone przy starcie sekwencji
+                                    spectrum_roi = apply_roi_for_sequence(spectrum_profile)
                                 else:
-                                    # Generate dummy spectrum if no data available
-                                    print("⚠️  Warning: No spectrum data available, using dummy data")
-                                    spectrum = np.zeros(2048)
-                            
-                            # For sequence measurements, save FULL spectrum (all 2048 points)
-                            # Don't use ROI settings - save complete spectrum data
-                            
+                                    # Fallback do aktualnego widma z GUI lub zera
+                                    if hasattr(self, 'spectrum_data') and self.spectrum_data is not None and len(self.spectrum_data) > 0:
+                                        spectrum_roi = np.asarray(self.spectrum_data).copy()
+                                    else:
+                                        print("⚠️  Warning: No spectrum data available, using dummy data")
+                                        spectrum_roi = np.zeros_like(axis_vals, dtype=float)
+
+                                spectra_for_point.append(spectrum_roi)
+
+                            if not spectra_for_point:
+                                continue
+
+                            # Dla kompatybilności z istniejącym GUI zapisujemy w głównym pliku
+                            # tylko widmo dla pierwszego czasu ekspozycji.
+                            primary_spectrum = spectra_for_point[0]
+
                             # Save measurement data with grid coordinates (x_pixel, y_pixel, spectrum_values)
-                            writer.writerow([grid_x, grid_y] + spectrum.tolist())
+                            writer.writerow([grid_x, grid_y] + primary_spectrum.tolist())
+
+                            # Dodatkowo zapisz osobny plik dla tego punktu (x,y) z kolumnami:
+                            # lambda, I_t1, I_t2, ...
+                            try:
+                                point_file = os.path.join(points_folder, f"point_x{grid_x}_y{grid_y}.csv")
+                                with open(point_file, "w", newline="") as pf:
+                                    pw = csv.writer(pf)
+                                    header = ["lambda"] + [f"I_{exp:.1f}ms" for exp in exposures_ms]
+                                    pw.writerow(header)
+
+                                    for idx in range(len(axis_vals)):
+                                        row = [float(axis_vals[idx])]
+                                        for spec in spectra_for_point:
+                                            row.append(float(spec[idx]))
+                                        pw.writerow(row)
+                            except Exception as e:
+                                print(f"Error writing point file for ({grid_x},{grid_y}): {e}")
                             
                             # Progress update
                             elapsed = time.time() - start_time
@@ -2871,29 +3075,7 @@ class SpektrometerApp(CustomTk):
                             print(f"📊 Punkt {point_index}/{total_points} ({progress:.1f}%) - "
                                 f"Siatka: ({grid_x}, {grid_y}) μm - ETA: {eta:.0f}s")
                             
-                            # Smart delay based on camera frame rate and exposure time
-                            # Get current exposure time from UI or options
-                            if hasattr(self, 'exposure_var'):
-                                exposure_time_ms = float(self.exposure_var.get())
-                            else:
-                                exposure_time_ms = float(self.options.get('exposure_time', 10.0))
-                            
-                            exposure_time_s = exposure_time_ms / 1000.0  # Convert ms to seconds
-                            
-                            # Frame rate is limited by exposure time + readout time
-                            # Add buffer for camera processing and readout (typically ~50-100ms)
-                            min_frame_time = exposure_time_s + 0.1  # exposure + 100ms buffer
-                            
-                            # Use configured sequence_sleep but ensure it's not less than frame time
-                            configured_sleep = float(self.options.get('sequence_sleep', 0.5))
-                            actual_sleep = max(configured_sleep, min_frame_time)
-
-                            # Najpierw odczekaj w aktualnym punkcie (pomiar przy
-                            # nieruchomym stoliku), a dopiero potem wykonaj ruch.
-                            print(f"🕒 Wait: {actual_sleep:.2f}s (exposure: {exposure_time_ms}ms + buffer)")
-                            time.sleep(actual_sleep)
-
-                            # RUCH: przejście do kolejnego punktu siatki
+                            # RUCH: przejście do kolejnego punktu siatki (po wykonaniu wszystkich ekspozycji w punkcie)
                             if ix != last_ix_in_row:
                                 # Ruch w poziomie w obrębie tego samego wiersza
                                 if starting_corner in ['top-left', 'bottom-left']:
@@ -2943,6 +3125,13 @@ class SpektrometerApp(CustomTk):
                             os.remove(filename)
                     except:
                         pass
+                # Usuń również częściowo zapisane pliki punktowe
+                if not scan_completed and 'points_folder' in locals():
+                    try:
+                        if os.path.isdir(points_folder):
+                            shutil.rmtree(points_folder)
+                    except Exception as e:
+                        print(f"Error while removing point folder {points_folder}: {e}")
                 
                 # Reset sequence flags and button states
                 self._sequence_running = False
